@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lions Activity Tracker</title>
+
+<!--
+╔══════════════════════════════════════════════════════════════════╗
+║  SUPABASE SETUP — Run this SQL in your Supabase SQL Editor     ║
+╠══════════════════════════════════════════════════════════════════╣
+
+-- 1. Create tables
+
+CREATE TABLE initiatives (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  title text NOT NULL,
+  short_description text,
+  long_description text,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','upcoming','ended')),
+  date_start date,
+  date_end date,
+  allowed_activity_types text[] DEFAULT '{}',
+  recommended_targets jsonb,
+  tags text[] DEFAULT '{}',
+  created_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE activity_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
+  initiative_id uuid NOT NULL REFERENCES initiatives(id),
+  activity_type text NOT NULL,
+  duration_minutes integer NOT NULL CHECK (duration_minutes > 0),
+  distance_km numeric,
+  logged_at timestamptz DEFAULT now(),
+  notes text,
+  photo_url text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 2. Enable RLS
+
+ALTER TABLE initiatives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+
+-- Initiatives: anyone can read
+CREATE POLICY "Initiatives are viewable by everyone"
+  ON initiatives FOR SELECT USING (true);
+
+-- Activity logs: anyone can read, owner can insert/update/delete
+CREATE POLICY "Activity logs are viewable by everyone"
+  ON activity_logs FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert their own logs"
+  ON activity_logs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own logs"
+  ON activity_logs FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own logs"
+  ON activity_logs FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 3. Seed example initiatives
+
+INSERT INTO initiatives (title, short_description, long_description, status, date_start, date_end, allowed_activity_types, recommended_targets, tags) VALUES
+(
+  'Move for the Planet – Club Walk (Bern)',
+  'Join our club walk through the heart of Bern to raise awareness for environmental sustainability.',
+  'The annual Move for the Planet walk brings together Lions members and friends for a scenic route through Bern''s Old Town and along the Aare river. Every step counts towards our collective goal of promoting a healthier planet and healthier communities. Suitable for all fitness levels — families welcome!',
+  'active',
+  '2025-03-01',
+  '2025-06-30',
+  ARRAY['walk','run'],
+  '{"walk": "10 km", "run": "5 km"}',
+  ARRAY['environment','bern']
+),
+(
+  'Bike Ride – Moossee',
+  'A scenic bike ride around the Moossee lake, combining fitness with fellowship.',
+  'Explore the beautiful Moossee area on two wheels! This initiative encourages Lions and friends to complete a bike ride around the lake. Track your distance and duration to contribute to our club totals. Routes of varying lengths are available — from a gentle 10 km loop to a challenging 40 km extended circuit.',
+  'active',
+  '2025-04-01',
+  '2025-09-30',
+  ARRAY['bike'],
+  '{"bike": "20 km"}',
+  ARRAY['environment','bern']
+),
+(
+  'Swim for Sustainability – 500m Challenge',
+  'Swim 500 meters to support our sustainability goals and promote water safety awareness.',
+  'Whether you prefer the pool or open water, every lap matters. This challenge asks participants to swim at least 500 meters in a single session. It''s a great way to stay fit while supporting Lions'' commitment to environmental causes. Log your swims and watch our collective distance grow!',
+  'active',
+  '2025-05-01',
+  '2025-08-31',
+  ARRAY['swim'],
+  '{"swim": "0.5 km"}',
+  ARRAY['environment','youth']
+),
+(
+  'Wheelchair Roll – Inclusion Miles',
+  'Promoting inclusion by rolling together — open to wheelchair users and walking companions alike.',
+  'Inclusion Miles celebrates diversity and accessibility. Wheelchair users and walking companions log their distances side by side. The goal is simple: move together, break barriers, and show that Lions stands for inclusion. Every kilometer rolled or walked counts toward our shared target.',
+  'active',
+  '2025-03-15',
+  '2025-12-31',
+  ARRAY['wheelchair','walk'],
+  '{"wheelchair": "1 km", "walk": "10 km"}',
+  ARRAY['vision','inclusion']
+);
+
+╚══════════════════════════════════════════════════════════════════╝
+-->
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --lci-blue: #00338D;
+  --lci-blue-light: #1a4a9e;
+  --lci-gold: #EBB700;
+  --lci-gold-hover: #d4a500;
+  --lci-gray: #766A62;
+  --lci-gray-light: #a89f98;
+  --lci-bg: #ffffff;
+  --lci-bg-alt: #f7f6f5;
+  --lci-border: #e5e2df;
+  --lci-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --lci-radius: 8px;
+  --nav-height: 64px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #333;
+  background: var(--lci-bg);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ─── NAV ─── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--lci-blue);
+  color: #fff;
+  border-bottom: 3px solid var(--lci-gold);
+}
+.nav-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; height: var(--nav-height);
+}
+.nav-logo {
+  font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  white-space: nowrap;
+}
+.nav-logo svg { flex-shrink: 0; }
+.nav-links { display: flex; gap: 4px; }
+.nav-links a {
+  color: rgba(255,255,255,0.85); text-decoration: none;
+  padding: 8px 16px; border-radius: 6px;
+  font-size: 0.9rem; font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+  cursor: pointer; white-space: nowrap;
+}
+.nav-links a:hover, .nav-links a.active {
+  background: rgba(255,255,255,0.15); color: #fff;
+}
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.lang-switch {
+  display: flex; gap: 2px;
+  background: rgba(255,255,255,0.1); border-radius: 6px; padding: 2px;
+}
+.lang-switch button {
+  background: none; border: none; color: rgba(255,255,255,0.6);
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+  transition: all 0.2s;
+}
+.lang-switch button.active {
+  background: rgba(255,255,255,0.2); color: #fff;
+}
+.auth-btn {
+  background: var(--lci-gold); color: var(--lci-blue);
+  border: none; padding: 6px 16px; border-radius: 6px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  transition: background 0.2s;
+}
+.auth-btn:hover { background: var(--lci-gold-hover); }
+.hamburger {
+  display: none; background: none; border: none; color: #fff;
+  cursor: pointer; padding: 4px;
+}
+.mobile-menu {
+  display: none; position: fixed; top: var(--nav-height); left: 0; right: 0;
+  background: var(--lci-blue); border-bottom: 3px solid var(--lci-gold);
+  padding: 16px 20px; z-index: 99;
+  flex-direction: column; gap: 4px;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  color: rgba(255,255,255,0.85); text-decoration: none;
+  padding: 12px 16px; border-radius: 6px;
+  font-size: 1rem; font-weight: 500; cursor: pointer;
+}
+.mobile-menu a:hover, .mobile-menu a.active {
+  background: rgba(255,255,255,0.15); color: #fff;
+}
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hamburger { display: block; }
+  .nav-logo span { display: none; }
+}
+
+/* ─── MAIN CONTENT ─── */
+.page { display: none; padding: 0; }
+.page.active { display: block; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+/* ─── HEADER BAND ─── */
+.page-header {
+  background: var(--lci-bg-alt);
+  border-bottom: 1px solid var(--lci-border);
+  padding: 32px 20px 28px;
+}
+.page-header .container {
+  padding-top: 0; padding-bottom: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px;
+}
+.page-header h1 {
+  font-size: 1.8rem; color: var(--lci-blue); font-weight: 700;
+  border-bottom: 3px solid var(--lci-gold); padding-bottom: 4px;
+}
+.page-header .subtitle { color: var(--lci-gray); font-size: 0.95rem; margin-top: 4px; }
+.btn-primary {
+  background: var(--lci-blue); color: #fff; border: none;
+  padding: 12px 24px; border-radius: var(--lci-radius);
+  font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary:hover { background: var(--lci-blue-light); }
+.btn-secondary {
+  background: #fff; color: var(--lci-blue); border: 2px solid var(--lci-blue);
+  padding: 10px 22px; border-radius: var(--lci-radius);
+  font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { background: var(--lci-blue); color: #fff; }
+.btn-gold {
+  background: var(--lci-gold); color: var(--lci-blue); border: none;
+  padding: 10px 20px; border-radius: var(--lci-radius);
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-gold:hover { background: var(--lci-gold-hover); }
+.btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+
+/* ─── KPI STRIP ─── */
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  margin-bottom: 32px;
+}
+.kpi-card {
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); padding: 20px;
+  box-shadow: var(--lci-shadow); text-align: center;
+}
+.kpi-card .kpi-value {
+  font-size: 2rem; font-weight: 700; color: var(--lci-blue);
+  line-height: 1.2;
+}
+.kpi-card .kpi-label {
+  font-size: 0.85rem; color: var(--lci-gray); margin-top: 4px;
+  font-weight: 500;
+}
+@media (max-width: 768px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .kpi-strip { grid-template-columns: 1fr; }
+}
+
+/* ─── FILTERS ─── */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-bottom: 24px; align-items: center;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-group label { font-size: 0.85rem; color: var(--lci-gray); font-weight: 600; }
+.filter-group select, .filter-group input {
+  padding: 8px 12px; border: 1px solid var(--lci-border); border-radius: 6px;
+  font-size: 0.9rem; background: #fff; color: #333;
+}
+.filter-group select:focus, .filter-group input:focus {
+  outline: none; border-color: var(--lci-blue); box-shadow: 0 0 0 3px rgba(0,51,141,0.1);
+}
+
+/* ─── INITIATIVE CARDS ─── */
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+.initiative-card {
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); overflow: hidden;
+  box-shadow: var(--lci-shadow); transition: box-shadow 0.2s, transform 0.2s;
+  cursor: pointer; display: flex; flex-direction: column;
+}
+.initiative-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px);
+}
+.initiative-card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+.initiative-card-title {
+  font-size: 1.1rem; font-weight: 700; color: var(--lci-blue);
+  margin-bottom: 8px;
+}
+.initiative-card-desc {
+  font-size: 0.9rem; color: #555; margin-bottom: 16px;
+  flex: 1;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pill {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pill-active { background: #d4edda; color: #155724; }
+.pill-upcoming { background: #fff3cd; color: #856404; }
+.pill-ended { background: #e2e3e5; color: #383d41; }
+.initiative-card-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--lci-border);
+}
+.initiative-card-stats {
+  display: flex; gap: 16px; font-size: 0.85rem; color: var(--lci-gray);
+}
+.initiative-card-stats span { display: flex; align-items: center; gap: 4px; }
+.tags-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.tag {
+  background: var(--lci-bg-alt); color: var(--lci-gray);
+  padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+  font-weight: 500; text-transform: capitalize;
+}
+
+/* ─── DETAIL MODAL ─── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 200;
+  justify-content: center; align-items: flex-start;
+  padding: 40px 20px; overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 12px; max-width: 700px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modal-header {
+  padding: 24px 28px 16px; border-bottom: 1px solid var(--lci-border);
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.modal-header h2 {
+  font-size: 1.4rem; color: var(--lci-blue);
+  border-bottom: 3px solid var(--lci-gold); padding-bottom: 4px;
+}
+.modal-close {
+  background: none; border: none; font-size: 1.5rem; color: var(--lci-gray);
+  cursor: pointer; padding: 4px 8px; border-radius: 4px;
+  transition: background 0.2s;
+}
+.modal-close:hover { background: var(--lci-bg-alt); }
+.modal-body { padding: 24px 28px; }
+.modal-body p { margin-bottom: 16px; color: #444; }
+.modal-body .detail-meta {
+  display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;
+}
+.detail-meta-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.9rem; color: var(--lci-gray);
+}
+.detail-meta-item strong { color: var(--lci-blue); }
+.recommended-box {
+  background: #fdf8e8; border: 1px solid #f0e5b8; border-radius: 8px;
+  padding: 14px 18px; margin-bottom: 20px;
+}
+.recommended-box .rec-title {
+  font-weight: 700; font-size: 0.85rem; color: var(--lci-gray);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.recommended-box .rec-items { font-size: 0.95rem; color: #555; }
+.activity-feed { margin-top: 24px; }
+.activity-feed h3 {
+  font-size: 1rem; color: var(--lci-blue); margin-bottom: 12px;
+  font-weight: 600;
+}
+.feed-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--lci-border);
+  font-size: 0.9rem;
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--lci-blue); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 600; flex-shrink: 0;
+}
+.feed-text { color: #555; }
+.feed-text strong { color: #333; }
+.feed-time { margin-left: auto; color: var(--lci-gray-light); font-size: 0.8rem; white-space: nowrap; }
+.modal-footer { padding: 16px 28px 24px; }
+
+/* ─── LOG FORM ─── */
+.log-form-wrap {
+  max-width: 600px; margin: 0 auto;
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); padding: 32px;
+  box-shadow: var(--lci-shadow);
+}
+.form-group { margin-bottom: 24px; }
+.form-group label {
+  display: block; font-weight: 600; color: var(--lci-blue);
+  margin-bottom: 6px; font-size: 0.9rem;
+}
+.form-group .helper {
+  font-size: 0.8rem; color: var(--lci-gray); margin-top: 4px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 12px 16px; border: 1px solid var(--lci-border);
+  border-radius: 8px; font-size: 1rem; color: #333;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--lci-blue);
+  box-shadow: 0 0 0 3px rgba(0,51,141,0.1);
+}
+.form-group textarea { resize: vertical; min-height: 80px; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 10px 20px; border: 2px solid var(--lci-border);
+  border-radius: 24px; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; background: #fff; color: #555;
+  user-select: none;
+}
+.chip:hover { border-color: var(--lci-blue); color: var(--lci-blue); }
+.chip.selected {
+  background: var(--lci-blue); color: #fff; border-color: var(--lci-blue);
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+.recommended-hint {
+  background: #fdf8e8; border: 1px solid #f0e5b8; border-radius: 8px;
+  padding: 10px 14px; margin-top: 8px; font-size: 0.85rem; color: #856404;
+  display: none;
+}
+.recommended-hint.visible { display: block; }
+
+/* ─── SUCCESS SCREEN ─── */
+.success-screen {
+  text-align: center; padding: 60px 20px;
+  max-width: 500px; margin: 0 auto;
+}
+.success-screen .check-circle {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: #d4edda; color: #155724;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; margin: 0 auto 20px;
+}
+.success-screen h2 { color: var(--lci-blue); margin-bottom: 8px; }
+.success-screen p { color: var(--lci-gray); margin-bottom: 24px; }
+.success-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* ─── MY LOGS ─── */
+.logs-summary {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  margin-bottom: 32px;
+}
+.logs-summary-card {
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); padding: 20px;
+  box-shadow: var(--lci-shadow); text-align: center;
+}
+.logs-summary-card .value {
+  font-size: 1.8rem; font-weight: 700; color: var(--lci-blue);
+}
+.logs-summary-card .label {
+  font-size: 0.85rem; color: var(--lci-gray); margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .logs-summary { grid-template-columns: 1fr; }
+}
+.logs-table-wrap {
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); box-shadow: var(--lci-shadow);
+  overflow-x: auto;
+}
+.logs-table {
+  width: 100%; border-collapse: collapse; font-size: 0.9rem;
+}
+.logs-table th {
+  background: var(--lci-bg-alt); color: var(--lci-blue);
+  padding: 12px 16px; text-align: left; font-weight: 600;
+  border-bottom: 2px solid var(--lci-border);
+  white-space: nowrap;
+}
+.logs-table td {
+  padding: 12px 16px; border-bottom: 1px solid var(--lci-border);
+  color: #444;
+}
+.logs-table tr:last-child td { border-bottom: none; }
+.logs-table tr:hover td { background: var(--lci-bg-alt); }
+.delete-btn {
+  background: none; border: 1px solid #dc3545; color: #dc3545;
+  padding: 4px 10px; border-radius: 4px; font-size: 0.8rem;
+  cursor: pointer; transition: all 0.2s;
+}
+.delete-btn:hover { background: #dc3545; color: #fff; }
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--lci-gray);
+}
+.empty-state svg { margin-bottom: 16px; }
+.empty-state h3 { color: var(--lci-blue); margin-bottom: 8px; }
+
+/* ─── ABOUT ─── */
+.about-content { max-width: 700px; }
+.about-content h2 {
+  color: var(--lci-blue); margin-bottom: 16px;
+  border-bottom: 3px solid var(--lci-gold); display: inline-block;
+  padding-bottom: 4px;
+}
+.about-content p { margin-bottom: 16px; color: #444; }
+.about-content ul { margin: 0 0 16px 24px; color: #444; }
+.about-content li { margin-bottom: 8px; }
+
+/* ─── AUTH MODAL ─── */
+.auth-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 300;
+  justify-content: center; align-items: center;
+  padding: 20px;
+}
+.auth-modal-overlay.open { display: flex; }
+.auth-modal {
+  background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
+  padding: 36px; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease;
+}
+.auth-modal h2 {
+  color: var(--lci-blue); text-align: center; margin-bottom: 8px;
+}
+.auth-modal .auth-subtitle {
+  text-align: center; color: var(--lci-gray); margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+.auth-modal .form-group { margin-bottom: 20px; }
+.auth-modal .auth-footer {
+  text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--lci-gray);
+}
+.auth-error {
+  background: #f8d7da; color: #721c24; border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 16px; font-size: 0.9rem;
+  display: none;
+}
+.auth-error.visible { display: block; }
+.auth-success-msg {
+  text-align: center; padding: 20px;
+}
+.auth-success-msg h3 { color: var(--lci-blue); margin-bottom: 8px; }
+.auth-success-msg p { color: var(--lci-gray); font-size: 0.9rem; }
+
+/* ─── SETUP MODAL ─── */
+.setup-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 400;
+  justify-content: center; align-items: center;
+  padding: 20px;
+}
+.setup-modal-overlay.open { display: flex; }
+.setup-modal {
+  background: #fff; border-radius: 12px; max-width: 520px; width: 100%;
+  padding: 36px; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease;
+}
+.setup-modal h2 { color: var(--lci-blue); margin-bottom: 8px; }
+.setup-modal p { color: var(--lci-gray); margin-bottom: 20px; font-size: 0.9rem; }
+.setup-modal .form-group { margin-bottom: 16px; }
+.setup-modal code {
+  background: var(--lci-bg-alt); padding: 2px 6px; border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+/* ─── USER MENU ─── */
+.user-menu { position: relative; }
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--lci-gold); color: var(--lci-blue);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem; cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.3);
+  transition: border-color 0.2s;
+}
+.user-avatar:hover { border-color: rgba(255,255,255,0.6); }
+.user-dropdown {
+  display: none; position: absolute; top: calc(100% + 8px); right: 0;
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 200px; z-index: 110;
+}
+.user-dropdown.open { display: block; }
+.user-dropdown-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--lci-border);
+  font-size: 0.85rem; color: var(--lci-gray);
+}
+.user-dropdown a {
+  display: block; padding: 10px 16px; color: #333;
+  text-decoration: none; font-size: 0.9rem;
+  transition: background 0.2s;
+}
+.user-dropdown a:hover { background: var(--lci-bg-alt); }
+.user-dropdown a.danger { color: #dc3545; }
+
+/* ─── LOADING ─── */
+.spinner {
+  display: inline-block; width: 20px; height: 20px;
+  border: 2px solid rgba(0,0,0,0.1); border-left-color: var(--lci-blue);
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay {
+  display: flex; align-items: center; justify-content: center;
+  padding: 60px; color: var(--lci-gray); gap: 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo" onclick="navigate('initiatives')">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="13" stroke="#EBB700" stroke-width="2"/>
+        <text x="14" y="18" text-anchor="middle" fill="#EBB700" font-size="12" font-weight="700">L</text>
+      </svg>
+      <span>LIONS ACTIVITY TRACKER</span>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a onclick="navigate('initiatives')" data-page="initiatives" data-i18n="nav_initiatives">Initiativen</a>
+      <a onclick="navigate('log')" data-page="log" data-i18n="nav_log">Aktivität erfassen</a>
+      <a onclick="navigate('mylogs')" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
+      <a onclick="navigate('about')" data-page="about" data-i18n="nav_about">Über uns</a>
+    </div>
+    <div class="nav-right">
+      <div class="lang-switch" id="langSwitch">
+        <button onclick="setLang('de')" class="active">DE</button>
+        <button onclick="setLang('fr')">FR</button>
+        <button onclick="setLang('it')">IT</button>
+        <button onclick="setLang('en')">EN</button>
+      </div>
+      <div id="authArea">
+        <button class="auth-btn" onclick="showAuth()" data-i18n="nav_signin">Anmelden</button>
+      </div>
+      <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a onclick="navigate('initiatives');closeMobileMenu()" data-page="initiatives" data-i18n="nav_initiatives">Initiativen</a>
+  <a onclick="navigate('log');closeMobileMenu()" data-page="log" data-i18n="nav_log">Aktivität erfassen</a>
+  <a onclick="navigate('mylogs');closeMobileMenu()" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
+  <a onclick="navigate('about');closeMobileMenu()" data-page="about" data-i18n="nav_about">Über uns</a>
+</div>
+
+<!-- ═══ PAGE: INITIATIVES ═══ -->
+<div class="page active" id="page-initiatives">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="initiatives_title">Initiativen</h1>
+        <div class="subtitle" data-i18n="initiatives_subtitle">Gemeinsam bewegen, gemeinsam wirken</div>
+      </div>
+      <button class="btn-primary" onclick="navigate('log')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="btn_log_activity">Aktivität erfassen</span>
+      </button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="kpi-strip" id="kpiStrip">
+      <div class="kpi-card"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi_total">Aktivitäten total</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="kpi-minutes">—</div><div class="kpi-label" data-i18n="kpi_minutes">Minuten total</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="kpi-km">—</div><div class="kpi-label" data-i18n="kpi_km">Kilometer total</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="kpi-users">—</div><div class="kpi-label" data-i18n="kpi_users">Aktive Teilnehmer</div></div>
+    </div>
+    <div class="filters" id="filtersBar">
+      <div class="filter-group">
+        <label data-i18n="filter_status">Status:</label>
+        <select id="filterStatus" onchange="renderInitiatives()">
+          <option value="all" data-i18n="filter_all">Alle</option>
+          <option value="active" data-i18n="status_active">Aktiv</option>
+          <option value="upcoming" data-i18n="status_upcoming">Bevorstehend</option>
+          <option value="ended" data-i18n="status_ended">Beendet</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label data-i18n="filter_tag">Thema:</label>
+        <select id="filterTag" onchange="renderInitiatives()">
+          <option value="all" data-i18n="filter_all">Alle</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:1; min-width:200px;">
+        <input type="text" id="filterSearch" placeholder="Suche…" oninput="renderInitiatives()" data-i18n-placeholder="filter_search_placeholder">
+      </div>
+    </div>
+    <div class="card-grid" id="initiativeGrid"></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: LOG ACTIVITY ═══ -->
+<div class="page" id="page-log">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="log_title">Aktivität erfassen</h1>
+        <div class="subtitle" data-i18n="log_subtitle">Schnell und einfach — in unter 30 Sekunden</div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="log-form-wrap" id="logFormWrap">
+      <form id="logForm" onsubmit="submitLog(event)">
+        <div class="form-group">
+          <label data-i18n="log_initiative">Initiative *</label>
+          <select id="logInitiative" required onchange="onInitiativeChange()">
+            <option value="" data-i18n="log_select_initiative">Initiative wählen…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="log_activity_type">Aktivitätstyp *</label>
+          <div class="chip-group" id="activityChips"></div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="log_duration">Dauer (Minuten) *</label>
+          <input type="number" id="logDuration" min="1" max="1440" required placeholder="z.B. 45">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label data-i18n="log_distance">Distanz (km)</label>
+            <input type="number" id="logDistance" min="0" step="0.1" placeholder="z.B. 5.2">
+            <div class="helper" data-i18n="log_distance_hint">Optional — nicht alle Aktivitäten tracken Distanz</div>
+          </div>
+          <div class="form-group">
+            <label data-i18n="log_date">Datum / Uhrzeit</label>
+            <input type="datetime-local" id="logDate">
+            <div class="helper" data-i18n="log_date_hint">Standard: jetzt</div>
+          </div>
+        </div>
+        <div class="recommended-hint" id="recommendedHint"></div>
+        <div class="form-group">
+          <label data-i18n="log_notes">Notizen</label>
+          <textarea id="logNotes" placeholder="Optional…" data-i18n-placeholder="log_notes_placeholder"></textarea>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">
+          <span data-i18n="log_submit">Aktivität speichern</span>
+        </button>
+      </form>
+    </div>
+    <div class="success-screen" id="successScreen" style="display:none;">
+      <div class="check-circle">✓</div>
+      <h2 data-i18n="success_title">Gespeichert!</h2>
+      <p id="successMsg"></p>
+      <div class="success-actions">
+        <button class="btn-primary" onclick="resetLogForm()" data-i18n="success_log_another">Weitere Aktivität erfassen</button>
+        <button class="btn-secondary" onclick="navigate('initiatives')" data-i18n="success_back">Zurück zur Übersicht</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: MY LOGS ═══ -->
+<div class="page" id="page-mylogs">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="mylogs_title">Meine Logs</h1>
+        <div class="subtitle" data-i18n="mylogs_subtitle">Übersicht deiner Aktivitäten</div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div id="mylogsContent">
+      <div class="empty-state" id="mylogsEmpty">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#766A62" stroke-width="1.5">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        <h3 data-i18n="mylogs_empty_title">Noch keine Aktivitäten</h3>
+        <p data-i18n="mylogs_empty_text">Erfasse deine erste Aktivität und sie erscheint hier.</p>
+        <button class="btn-primary" onclick="navigate('log')" style="margin-top:16px" data-i18n="btn_log_activity">Aktivität erfassen</button>
+      </div>
+      <div id="mylogsSummary" style="display:none;">
+        <div class="logs-summary">
+          <div class="logs-summary-card"><div class="value" id="my-total">0</div><div class="label" data-i18n="kpi_total">Aktivitäten total</div></div>
+          <div class="logs-summary-card"><div class="value" id="my-minutes">0</div><div class="label" data-i18n="kpi_minutes">Minuten total</div></div>
+          <div class="logs-summary-card"><div class="value" id="my-km">0</div><div class="label" data-i18n="kpi_km">Kilometer total</div></div>
+        </div>
+        <div class="logs-table-wrap">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th data-i18n="col_date">Datum</th>
+                <th data-i18n="col_initiative">Initiative</th>
+                <th data-i18n="col_type">Typ</th>
+                <th data-i18n="col_duration">Dauer</th>
+                <th data-i18n="col_distance">Distanz</th>
+                <th data-i18n="col_notes">Notizen</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="mylogsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: ABOUT ═══ -->
+<div class="page" id="page-about">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="about_title">Über uns</h1>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="about-content" id="aboutContent"></div>
+  </div>
+</div>
+
+<!-- ═══ INITIATIVE DETAIL MODAL ═══ -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="detailTitle"></h2>
+      <button class="modal-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="detailLogBtn" data-i18n="btn_log_for_initiative">Für diese Initiative loggen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AUTH MODAL ═══ -->
+<div class="auth-modal-overlay" id="authModal">
+  <div class="auth-modal">
+    <h2 data-i18n="auth_title">Anmelden</h2>
+    <p class="auth-subtitle" data-i18n="auth_subtitle">Mit Magic Link per E-Mail anmelden</p>
+    <div class="auth-error" id="authError"></div>
+    <div id="authFormArea">
+      <form onsubmit="handleAuth(event)">
+        <div class="form-group">
+          <label data-i18n="auth_email">E-Mail-Adresse</label>
+          <input type="email" id="authEmail" required placeholder="name@example.com">
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;" id="authSubmitBtn">
+          <span data-i18n="auth_send_link">Magic Link senden</span>
+        </button>
+      </form>
+      <div class="auth-footer">
+        <a href="javascript:void(0)" onclick="closeAuth()" data-i18n="auth_cancel">Abbrechen</a>
+      </div>
+    </div>
+    <div id="authSentArea" style="display:none;">
+      <div class="auth-success-msg">
+        <h3 data-i18n="auth_sent_title">Link gesendet!</h3>
+        <p data-i18n="auth_sent_text">Überprüfe dein E-Mail-Postfach und klicke den Link.</p>
+      </div>
+      <div style="text-align:center; margin-top:16px;">
+        <a href="javascript:void(0)" onclick="closeAuth()" data-i18n="auth_close">Schliessen</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SETUP MODAL ═══ -->
+<div class="setup-modal-overlay" id="setupModal">
+  <div class="setup-modal">
+    <h2>Supabase Setup</h2>
+    <p>Enter your Supabase project details to connect. You can find these in your Supabase dashboard under <code>Settings → API</code>.</p>
+    <form onsubmit="saveSetup(event)">
+      <div class="form-group">
+        <label>Supabase URL</label>
+        <input type="url" id="setupUrl" required placeholder="https://your-project.supabase.co">
+      </div>
+      <div class="form-group">
+        <label>Anon Key</label>
+        <input type="text" id="setupKey" required placeholder="eyJhbGci…">
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">Connect</button>
+    </form>
+  </div>
+</div>
+
+<!-- Supabase JS Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════
+let SUPABASE_URL = localStorage.getItem('lions_sb_url') || '';
+let SUPABASE_KEY = localStorage.getItem('lions_sb_key') || '';
+let sb = null;
+let currentUser = null;
+let initiatives = [];
+let currentPage = 'initiatives';
+let selectedActivityType = '';
+let currentLang = localStorage.getItem('lions_lang') || 'de';
+
+// ═══════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════
+const i18n = {
+  de: {
+    nav_initiatives: 'Initiativen', nav_log: 'Aktivität erfassen', nav_mylogs: 'Meine Logs', nav_about: 'Über uns',
+    nav_signin: 'Anmelden', nav_signout: 'Abmelden',
+    initiatives_title: 'Initiativen', initiatives_subtitle: 'Gemeinsam bewegen, gemeinsam wirken',
+    btn_log_activity: 'Aktivität erfassen',
+    kpi_total: 'Aktivitäten total', kpi_minutes: 'Minuten total', kpi_km: 'Kilometer total', kpi_users: 'Aktive Teilnehmer',
+    filter_status: 'Status:', filter_tag: 'Thema:', filter_all: 'Alle', filter_search_placeholder: 'Suche…',
+    status_active: 'Aktiv', status_upcoming: 'Bevorstehend', status_ended: 'Beendet',
+    card_minutes: 'Min.', card_km: 'km', card_participants: 'Teilnehmer',
+    card_log_btn: 'Loggen',
+    log_title: 'Aktivität erfassen', log_subtitle: 'Schnell und einfach — in unter 30 Sekunden',
+    log_initiative: 'Initiative *', log_select_initiative: 'Initiative wählen…',
+    log_activity_type: 'Aktivitätstyp *', log_duration: 'Dauer (Minuten) *', log_distance: 'Distanz (km)',
+    log_distance_hint: 'Optional — nicht alle Aktivitäten tracken Distanz',
+    log_date: 'Datum / Uhrzeit', log_date_hint: 'Standard: jetzt',
+    log_notes: 'Notizen', log_notes_placeholder: 'Optional…', log_submit: 'Aktivität speichern',
+    log_signin_required: 'Bitte melde dich an, um Aktivitäten zu erfassen.',
+    success_title: 'Gespeichert!', success_log_another: 'Weitere Aktivität erfassen', success_back: 'Zurück zur Übersicht',
+    success_msg: '+{minutes} Minuten zu «{initiative}» hinzugefügt',
+    mylogs_title: 'Meine Logs', mylogs_subtitle: 'Übersicht deiner Aktivitäten',
+    mylogs_empty_title: 'Noch keine Aktivitäten', mylogs_empty_text: 'Erfasse deine erste Aktivität und sie erscheint hier.',
+    mylogs_signin: 'Melde dich an, um deine Logs zu sehen.',
+    col_date: 'Datum', col_initiative: 'Initiative', col_type: 'Typ', col_duration: 'Dauer', col_distance: 'Distanz', col_notes: 'Notizen',
+    btn_log_for_initiative: 'Für diese Initiative loggen',
+    detail_period: 'Zeitraum', detail_activities: 'Aktivitäten', detail_recent: 'Letzte Aktivitäten',
+    detail_recommended: 'Empfohlene Ziele',
+    about_title: 'Über uns',
+    about_html: '<h2>Lions Activity Tracker</h2><p>Der Lions Activity Tracker ist ein Werkzeug für Lions Clubs, um gemeinsame Initiativen zu organisieren und Aktivitäten zu erfassen. Ob Laufen, Velofahren, Schwimmen oder Rollstuhlfahren — jede Bewegung zählt.</p><p>Das Ziel: Gemeinsam bewegen, gemeinsam wirken. Die App ermöglicht es, Fortschritte zu verfolgen und die Gemeinschaft zu stärken.</p><h2>Was ist Lions Clubs International?</h2><p>Lions Clubs International ist die grösste Service-Organisation der Welt. Über 1,4 Millionen Mitglieder in mehr als 200 Ländern engagieren sich für:</p><ul><li>Umweltschutz und Nachhaltigkeit</li><li>Sehkraft und Gesundheitsförderung</li><li>Jugendförderung und Bildung</li><li>Inklusion und Barrierefreiheit</li><li>Humanitäre Hilfe und Katastrophenschutz</li></ul><p>Mehr erfahren: <a href="https://www.lionsclubs.org" target="_blank">lionsclubs.org</a></p>',
+    auth_title: 'Anmelden', auth_subtitle: 'Mit Magic Link per E-Mail anmelden', auth_email: 'E-Mail-Adresse',
+    auth_send_link: 'Magic Link senden', auth_cancel: 'Abbrechen',
+    auth_sent_title: 'Link gesendet!', auth_sent_text: 'Überprüfe dein E-Mail-Postfach und klicke den Link.', auth_close: 'Schliessen',
+    type_walk: 'Gehen', type_run: 'Laufen', type_bike: 'Velo', type_swim: 'Schwimmen', type_wheelchair: 'Rollstuhl', type_other: 'Andere',
+    confirm_delete: 'Diese Aktivität wirklich löschen?',
+  },
+  fr: {
+    nav_initiatives: 'Initiatives', nav_log: 'Saisir activité', nav_mylogs: 'Mes logs', nav_about: 'À propos',
+    nav_signin: 'Connexion', nav_signout: 'Déconnexion',
+    initiatives_title: 'Initiatives', initiatives_subtitle: 'Bougeons ensemble, agissons ensemble',
+    btn_log_activity: 'Saisir activité',
+    kpi_total: 'Activités total', kpi_minutes: 'Minutes total', kpi_km: 'Kilomètres total', kpi_users: 'Participants actifs',
+    filter_status: 'Statut :', filter_tag: 'Thème :', filter_all: 'Tous', filter_search_placeholder: 'Recherche…',
+    status_active: 'Actif', status_upcoming: 'À venir', status_ended: 'Terminé',
+    card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
+    card_log_btn: 'Logger',
+    log_title: 'Saisir activité', log_subtitle: 'Rapide et simple — en moins de 30 secondes',
+    log_initiative: 'Initiative *', log_select_initiative: 'Choisir une initiative…',
+    log_activity_type: 'Type d\'activité *', log_duration: 'Durée (minutes) *', log_distance: 'Distance (km)',
+    log_distance_hint: 'Optionnel — pas toutes les activités mesurent la distance',
+    log_date: 'Date / Heure', log_date_hint: 'Par défaut : maintenant',
+    log_notes: 'Notes', log_notes_placeholder: 'Optionnel…', log_submit: 'Enregistrer activité',
+    log_signin_required: 'Veuillez vous connecter pour saisir des activités.',
+    success_title: 'Enregistré !', success_log_another: 'Saisir une autre activité', success_back: 'Retour à l\'aperçu',
+    success_msg: '+{minutes} minutes ajoutées à «{initiative}»',
+    mylogs_title: 'Mes logs', mylogs_subtitle: 'Aperçu de vos activités',
+    mylogs_empty_title: 'Pas encore d\'activités', mylogs_empty_text: 'Saisissez votre première activité et elle apparaîtra ici.',
+    mylogs_signin: 'Connectez-vous pour voir vos logs.',
+    col_date: 'Date', col_initiative: 'Initiative', col_type: 'Type', col_duration: 'Durée', col_distance: 'Distance', col_notes: 'Notes',
+    btn_log_for_initiative: 'Logger pour cette initiative',
+    detail_period: 'Période', detail_activities: 'Activités', detail_recent: 'Activités récentes',
+    detail_recommended: 'Objectifs recommandés',
+    about_title: 'À propos',
+    about_html: '<h2>Lions Activity Tracker</h2><p>Le Lions Activity Tracker est un outil pour les Lions Clubs permettant d\'organiser des initiatives communes et de saisir des activités. Que ce soit la marche, le vélo, la natation ou le fauteuil roulant — chaque mouvement compte.</p><p>L\'objectif : Bougeons ensemble, agissons ensemble.</p><h2>Qu\'est-ce que Lions Clubs International ?</h2><p>Lions Clubs International est la plus grande organisation de service au monde, avec plus de 1,4 million de membres dans plus de 200 pays.</p><ul><li>Protection de l\'environnement</li><li>Vision et santé</li><li>Soutien à la jeunesse</li><li>Inclusion et accessibilité</li><li>Aide humanitaire</li></ul><p>En savoir plus : <a href="https://www.lionsclubs.org" target="_blank">lionsclubs.org</a></p>',
+    auth_title: 'Connexion', auth_subtitle: 'Connexion par Magic Link via e-mail', auth_email: 'Adresse e-mail',
+    auth_send_link: 'Envoyer le Magic Link', auth_cancel: 'Annuler',
+    auth_sent_title: 'Lien envoyé !', auth_sent_text: 'Vérifiez votre boîte e-mail et cliquez sur le lien.', auth_close: 'Fermer',
+    type_walk: 'Marche', type_run: 'Course', type_bike: 'Vélo', type_swim: 'Natation', type_wheelchair: 'Fauteuil roulant', type_other: 'Autre',
+    confirm_delete: 'Voulez-vous vraiment supprimer cette activité ?',
+  },
+  it: {
+    nav_initiatives: 'Iniziative', nav_log: 'Registra attività', nav_mylogs: 'I miei log', nav_about: 'Chi siamo',
+    nav_signin: 'Accedi', nav_signout: 'Esci',
+    initiatives_title: 'Iniziative', initiatives_subtitle: 'Muoviamoci insieme, agiamo insieme',
+    btn_log_activity: 'Registra attività',
+    kpi_total: 'Attività totali', kpi_minutes: 'Minuti totali', kpi_km: 'Chilometri totali', kpi_users: 'Partecipanti attivi',
+    filter_status: 'Stato:', filter_tag: 'Tema:', filter_all: 'Tutti', filter_search_placeholder: 'Cerca…',
+    status_active: 'Attivo', status_upcoming: 'In arrivo', status_ended: 'Terminato',
+    card_minutes: 'min.', card_km: 'km', card_participants: 'partecipanti',
+    card_log_btn: 'Registra',
+    log_title: 'Registra attività', log_subtitle: 'Veloce e semplice — in meno di 30 secondi',
+    log_initiative: 'Iniziativa *', log_select_initiative: 'Scegli un\'iniziativa…',
+    log_activity_type: 'Tipo di attività *', log_duration: 'Durata (minuti) *', log_distance: 'Distanza (km)',
+    log_distance_hint: 'Opzionale — non tutte le attività misurano la distanza',
+    log_date: 'Data / Ora', log_date_hint: 'Predefinito: adesso',
+    log_notes: 'Note', log_notes_placeholder: 'Opzionale…', log_submit: 'Salva attività',
+    log_signin_required: 'Effettua l\'accesso per registrare attività.',
+    success_title: 'Salvato!', success_log_another: 'Registra un\'altra attività', success_back: 'Torna alla panoramica',
+    success_msg: '+{minutes} minuti aggiunti a «{initiative}»',
+    mylogs_title: 'I miei log', mylogs_subtitle: 'Panoramica delle tue attività',
+    mylogs_empty_title: 'Nessuna attività', mylogs_empty_text: 'Registra la tua prima attività e apparirà qui.',
+    mylogs_signin: 'Accedi per vedere i tuoi log.',
+    col_date: 'Data', col_initiative: 'Iniziativa', col_type: 'Tipo', col_duration: 'Durata', col_distance: 'Distanza', col_notes: 'Note',
+    btn_log_for_initiative: 'Registra per questa iniziativa',
+    detail_period: 'Periodo', detail_activities: 'Attività', detail_recent: 'Attività recenti',
+    detail_recommended: 'Obiettivi consigliati',
+    about_title: 'Chi siamo',
+    about_html: '<h2>Lions Activity Tracker</h2><p>Il Lions Activity Tracker è uno strumento per i Lions Club per organizzare iniziative comuni e registrare attività. Che sia camminare, andare in bici, nuotare o andare in sedia a rotelle — ogni movimento conta.</p><h2>Cos\'è Lions Clubs International?</h2><p>Lions Clubs International è la più grande organizzazione di servizio al mondo, con oltre 1,4 milioni di membri in più di 200 paesi.</p><ul><li>Protezione dell\'ambiente</li><li>Vista e salute</li><li>Sostegno ai giovani</li><li>Inclusione e accessibilità</li><li>Aiuto umanitario</li></ul><p>Scopri di più: <a href="https://www.lionsclubs.org" target="_blank">lionsclubs.org</a></p>',
+    auth_title: 'Accedi', auth_subtitle: 'Accesso con Magic Link via e-mail', auth_email: 'Indirizzo e-mail',
+    auth_send_link: 'Invia Magic Link', auth_cancel: 'Annulla',
+    auth_sent_title: 'Link inviato!', auth_sent_text: 'Controlla la tua casella e-mail e clicca il link.', auth_close: 'Chiudi',
+    type_walk: 'Camminata', type_run: 'Corsa', type_bike: 'Bicicletta', type_swim: 'Nuoto', type_wheelchair: 'Sedia a rotelle', type_other: 'Altro',
+    confirm_delete: 'Vuoi davvero eliminare questa attività?',
+  },
+  en: {
+    nav_initiatives: 'Initiatives', nav_log: 'Log Activity', nav_mylogs: 'My Logs', nav_about: 'About',
+    nav_signin: 'Sign In', nav_signout: 'Sign Out',
+    initiatives_title: 'Initiatives', initiatives_subtitle: 'Move together, serve together',
+    btn_log_activity: 'Log Activity',
+    kpi_total: 'Total Activities', kpi_minutes: 'Total Minutes', kpi_km: 'Total Kilometers', kpi_users: 'Active Participants',
+    filter_status: 'Status:', filter_tag: 'Topic:', filter_all: 'All', filter_search_placeholder: 'Search…',
+    status_active: 'Active', status_upcoming: 'Upcoming', status_ended: 'Ended',
+    card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
+    card_log_btn: 'Log',
+    log_title: 'Log Activity', log_subtitle: 'Quick and simple — under 30 seconds',
+    log_initiative: 'Initiative *', log_select_initiative: 'Select initiative…',
+    log_activity_type: 'Activity Type *', log_duration: 'Duration (minutes) *', log_distance: 'Distance (km)',
+    log_distance_hint: 'Optional — not all activities track distance',
+    log_date: 'Date / Time', log_date_hint: 'Default: now',
+    log_notes: 'Notes', log_notes_placeholder: 'Optional…', log_submit: 'Save Activity',
+    log_signin_required: 'Please sign in to log activities.',
+    success_title: 'Saved!', success_log_another: 'Log Another Activity', success_back: 'Back to Dashboard',
+    success_msg: '+{minutes} minutes added to "{initiative}"',
+    mylogs_title: 'My Logs', mylogs_subtitle: 'Overview of your activities',
+    mylogs_empty_title: 'No activities yet', mylogs_empty_text: 'Log your first activity and it will appear here.',
+    mylogs_signin: 'Sign in to see your logs.',
+    col_date: 'Date', col_initiative: 'Initiative', col_type: 'Type', col_duration: 'Duration', col_distance: 'Distance', col_notes: 'Notes',
+    btn_log_for_initiative: 'Log for this initiative',
+    detail_period: 'Period', detail_activities: 'Activities', detail_recent: 'Recent Activities',
+    detail_recommended: 'Recommended Targets',
+    about_title: 'About',
+    about_html: '<h2>Lions Activity Tracker</h2><p>The Lions Activity Tracker is a tool for Lions Clubs to organize joint initiatives and log activities. Whether walking, cycling, swimming, or wheelchair rolling — every movement counts.</p><p>The goal: Move together, serve together.</p><h2>What is Lions Clubs International?</h2><p>Lions Clubs International is the world\'s largest service organization, with over 1.4 million members in more than 200 countries.</p><ul><li>Environmental protection and sustainability</li><li>Vision and health promotion</li><li>Youth support and education</li><li>Inclusion and accessibility</li><li>Humanitarian aid and disaster relief</li></ul><p>Learn more: <a href="https://www.lionsclubs.org" target="_blank">lionsclubs.org</a></p>',
+    auth_title: 'Sign In', auth_subtitle: 'Sign in with a magic link via email', auth_email: 'Email Address',
+    auth_send_link: 'Send Magic Link', auth_cancel: 'Cancel',
+    auth_sent_title: 'Link sent!', auth_sent_text: 'Check your email inbox and click the link.', auth_close: 'Close',
+    type_walk: 'Walk', type_run: 'Run', type_bike: 'Bike', type_swim: 'Swim', type_wheelchair: 'Wheelchair', type_other: 'Other',
+    confirm_delete: 'Really delete this activity?',
+  }
+};
+
+const activityTypeLabels = {
+  walk: 'type_walk', run: 'type_run', bike: 'type_bike',
+  swim: 'type_swim', wheelchair: 'type_wheelchair', other: 'type_other'
+};
+
+function t(key) { return (i18n[currentLang] && i18n[currentLang][key]) || i18n.en[key] || key; }
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.getElementById('aboutContent').innerHTML = t('about_html');
+  // Update filter option texts
+  const statusSel = document.getElementById('filterStatus');
+  if (statusSel) {
+    statusSel.options[0].text = t('filter_all');
+    statusSel.options[1].text = t('status_active');
+    statusSel.options[2].text = t('status_upcoming');
+    statusSel.options[3].text = t('status_ended');
+  }
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lions_lang', lang);
+  document.querySelectorAll('.lang-switch button').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim().toLowerCase() === lang);
+  });
+  document.documentElement.lang = lang;
+  applyI18n();
+  renderInitiatives();
+  renderMyLogs();
+}
+
+// ═══════════════════════════════════════
+// SUPABASE INIT
+// ═══════════════════════════════════════
+function initSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    document.getElementById('setupModal').classList.add('open');
+    return false;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Listen for auth changes
+  sb.auth.onAuthStateChange((event, session) => {
+    currentUser = session?.user || null;
+    updateAuthUI();
+    if (currentPage === 'mylogs') renderMyLogs();
+  });
+  return true;
+}
+
+function saveSetup(e) {
+  e.preventDefault();
+  SUPABASE_URL = document.getElementById('setupUrl').value.trim().replace(/\/$/, '');
+  SUPABASE_KEY = document.getElementById('setupKey').value.trim();
+  localStorage.setItem('lions_sb_url', SUPABASE_URL);
+  localStorage.setItem('lions_sb_key', SUPABASE_KEY);
+  document.getElementById('setupModal').classList.remove('open');
+  if (initSupabase()) {
+    loadAll();
+  }
+}
+
+// ═══════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════
+function updateAuthUI() {
+  const area = document.getElementById('authArea');
+  if (currentUser) {
+    const initials = (currentUser.email || '?').substring(0, 2).toUpperCase();
+    area.innerHTML = `
+      <div class="user-menu">
+        <div class="user-avatar" onclick="toggleUserMenu()">${initials}</div>
+        <div class="user-dropdown" id="userDropdown">
+          <div class="user-dropdown-header">${currentUser.email}</div>
+          <a href="javascript:void(0)" onclick="navigate('mylogs');closeUserMenu()" data-i18n="nav_mylogs">${t('nav_mylogs')}</a>
+          <a href="javascript:void(0)" class="danger" onclick="signOut()" data-i18n="nav_signout">${t('nav_signout')}</a>
+        </div>
+      </div>`;
+  } else {
+    area.innerHTML = `<button class="auth-btn" onclick="showAuth()" data-i18n="nav_signin">${t('nav_signin')}</button>`;
+  }
+}
+
+function toggleUserMenu() {
+  document.getElementById('userDropdown').classList.toggle('open');
+}
+function closeUserMenu() {
+  const dd = document.getElementById('userDropdown');
+  if (dd) dd.classList.remove('open');
+}
+
+function showAuth() {
+  if (!sb) { document.getElementById('setupModal').classList.add('open'); return; }
+  document.getElementById('authModal').classList.add('open');
+  document.getElementById('authFormArea').style.display = '';
+  document.getElementById('authSentArea').style.display = 'none';
+  document.getElementById('authError').classList.remove('visible');
+}
+function closeAuth() { document.getElementById('authModal').classList.remove('open'); }
+
+async function handleAuth(e) {
+  e.preventDefault();
+  const email = document.getElementById('authEmail').value.trim();
+  const errEl = document.getElementById('authError');
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  errEl.classList.remove('visible');
+
+  const redirectUrl = window.location.href.split('?')[0].split('#')[0];
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectUrl }
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = `<span data-i18n="auth_send_link">${t('auth_send_link')}</span>`;
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.classList.add('visible');
+  } else {
+    document.getElementById('authFormArea').style.display = 'none';
+    document.getElementById('authSentArea').style.display = '';
+  }
+}
+
+async function signOut() {
+  closeUserMenu();
+  if (sb) await sb.auth.signOut();
+  currentUser = null;
+  updateAuthUI();
+}
+
+// ═══════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════
+async function loadAll() {
+  if (!sb) return;
+  await Promise.all([loadInitiatives(), loadKPIs(), checkSession()]);
+}
+
+async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user || null;
+  updateAuthUI();
+}
+
+async function loadInitiatives() {
+  const { data, error } = await sb
+    .from('initiatives')
+    .select('*')
+    .order('date_start', { ascending: false });
+  if (!error && data) {
+    initiatives = data;
+    populateTagFilter();
+    populateInitiativeDropdown();
+    renderInitiatives();
+  }
+}
+
+async function loadKPIs() {
+  const { data, error } = await sb
+    .from('activity_logs')
+    .select('duration_minutes, distance_km, user_id');
+  if (!error && data) {
+    const total = data.length;
+    const minutes = data.reduce((s, r) => s + (r.duration_minutes || 0), 0);
+    const km = data.reduce((s, r) => s + (parseFloat(r.distance_km) || 0), 0);
+    const users = new Set(data.map(r => r.user_id)).size;
+    document.getElementById('kpi-total').textContent = total.toLocaleString();
+    document.getElementById('kpi-minutes').textContent = minutes.toLocaleString();
+    document.getElementById('kpi-km').textContent = km.toFixed(1);
+    document.getElementById('kpi-users').textContent = users.toLocaleString();
+  }
+}
+
+async function loadInitiativeStats(initiativeId) {
+  const { data } = await sb
+    .from('activity_logs')
+    .select('duration_minutes, distance_km, user_id')
+    .eq('initiative_id', initiativeId);
+  if (!data) return { minutes: 0, km: 0, participants: 0 };
+  return {
+    minutes: data.reduce((s, r) => s + (r.duration_minutes || 0), 0),
+    km: data.reduce((s, r) => s + (parseFloat(r.distance_km) || 0), 0),
+    participants: new Set(data.map(r => r.user_id)).size
+  };
+}
+
+async function loadRecentFeed(initiativeId) {
+  const { data } = await sb
+    .from('activity_logs')
+    .select('activity_type, duration_minutes, distance_km, logged_at, user_id')
+    .eq('initiative_id', initiativeId)
+    .order('logged_at', { ascending: false })
+    .limit(10);
+  return data || [];
+}
+
+// ═══════════════════════════════════════
+// RENDER: INITIATIVES
+// ═══════════════════════════════════════
+function populateTagFilter() {
+  const tags = new Set();
+  initiatives.forEach(i => (i.tags || []).forEach(tag => tags.add(tag)));
+  const sel = document.getElementById('filterTag');
+  sel.innerHTML = `<option value="all">${t('filter_all')}</option>`;
+  [...tags].sort().forEach(tag => {
+    sel.innerHTML += `<option value="${tag}">${tag.charAt(0).toUpperCase() + tag.slice(1)}</option>`;
+  });
+}
+
+function populateInitiativeDropdown() {
+  const sel = document.getElementById('logInitiative');
+  sel.innerHTML = `<option value="">${t('log_select_initiative')}</option>`;
+  initiatives.filter(i => i.status === 'active').forEach(i => {
+    sel.innerHTML += `<option value="${i.id}">${i.title}</option>`;
+  });
+}
+
+async function renderInitiatives() {
+  const grid = document.getElementById('initiativeGrid');
+  const statusFilter = document.getElementById('filterStatus').value;
+  const tagFilter = document.getElementById('filterTag').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+
+  let filtered = initiatives;
+  if (statusFilter !== 'all') filtered = filtered.filter(i => i.status === statusFilter);
+  if (tagFilter !== 'all') filtered = filtered.filter(i => (i.tags || []).includes(tagFilter));
+  if (search) filtered = filtered.filter(i =>
+    i.title.toLowerCase().includes(search) || (i.short_description || '').toLowerCase().includes(search)
+  );
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>${t('filter_all')}</h3></div>`;
+    return;
+  }
+
+  // Load stats for all initiatives in parallel
+  const statsMap = {};
+  await Promise.all(filtered.map(async (ini) => {
+    statsMap[ini.id] = await loadInitiativeStats(ini.id);
+  }));
+
+  grid.innerHTML = filtered.map(ini => {
+    const stats = statsMap[ini.id] || { minutes: 0, km: 0, participants: 0 };
+    const statusClass = `pill-${ini.status}`;
+    const statusText = t(`status_${ini.status}`);
+    const tagsHtml = (ini.tags || []).map(tag =>
+      `<span class="tag">${tag}</span>`
+    ).join('');
+    return `
+      <div class="initiative-card" onclick="openDetail('${ini.id}')">
+        <div class="initiative-card-body">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+            <span class="pill ${statusClass}">${statusText}</span>
+          </div>
+          <div class="initiative-card-title">${ini.title}</div>
+          <div class="initiative-card-desc">${ini.short_description || ''}</div>
+          ${tagsHtml ? `<div class="tags-row">${tagsHtml}</div>` : ''}
+          <div class="initiative-card-meta">
+            <div class="initiative-card-stats">
+              <span>${stats.minutes.toLocaleString()} ${t('card_minutes')}</span>
+              <span>${stats.km.toFixed(1)} ${t('card_km')}</span>
+              <span>${stats.participants} ${t('card_participants')}</span>
+            </div>
+            <button class="btn-gold btn-sm" onclick="event.stopPropagation(); logForInitiative('${ini.id}')">${t('card_log_btn')}</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// INITIATIVE DETAIL
+// ═══════════════════════════════════════
+async function openDetail(id) {
+  const ini = initiatives.find(i => i.id === id);
+  if (!ini) return;
+
+  document.getElementById('detailTitle').textContent = ini.title;
+  const body = document.getElementById('detailBody');
+
+  const stats = await loadInitiativeStats(id);
+  const feed = await loadRecentFeed(id);
+
+  let html = `<p>${ini.long_description || ini.short_description || ''}</p>`;
+  html += `<div class="detail-meta">`;
+  if (ini.date_start || ini.date_end) {
+    html += `<div class="detail-meta-item"><strong>${t('detail_period')}:</strong> ${formatDate(ini.date_start)} – ${formatDate(ini.date_end)}</div>`;
+  }
+  html += `<div class="detail-meta-item"><strong>${t('detail_activities')}:</strong> ${(ini.allowed_activity_types || []).map(a => t(activityTypeLabels[a] || a)).join(', ')}</div>`;
+  html += `</div>`;
+
+  if (ini.recommended_targets) {
+    const targets = typeof ini.recommended_targets === 'string' ? JSON.parse(ini.recommended_targets) : ini.recommended_targets;
+    const items = Object.entries(targets).map(([k, v]) => `${t(activityTypeLabels[k] || k)}: ${v}`).join(' / ');
+    html += `<div class="recommended-box"><div class="rec-title">${t('detail_recommended')}</div><div class="rec-items">${items}</div></div>`;
+  }
+
+  if (feed.length > 0) {
+    html += `<div class="activity-feed"><h3>${t('detail_recent')}</h3>`;
+    feed.forEach(f => {
+      const initial = '?';
+      const typeLabel = t(activityTypeLabels[f.activity_type] || f.activity_type);
+      const distText = f.distance_km ? ` · ${parseFloat(f.distance_km).toFixed(1)} km` : '';
+      html += `
+        <div class="feed-item">
+          <div class="feed-avatar">${initial}</div>
+          <div class="feed-text"><strong>${typeLabel}</strong> · ${f.duration_minutes} min${distText}</div>
+          <div class="feed-time">${formatDateTime(f.logged_at)}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  body.innerHTML = html;
+
+  const logBtn = document.getElementById('detailLogBtn');
+  logBtn.textContent = t('btn_log_for_initiative');
+  logBtn.onclick = () => { closeDetail(); logForInitiative(id); };
+
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeDetail() { document.getElementById('detailModal').classList.remove('open'); }
+
+// ═══════════════════════════════════════
+// LOG ACTIVITY
+// ═══════════════════════════════════════
+function logForInitiative(id) {
+  navigate('log');
+  document.getElementById('logInitiative').value = id;
+  onInitiativeChange();
+}
+
+function onInitiativeChange() {
+  const id = document.getElementById('logInitiative').value;
+  const ini = initiatives.find(i => i.id === id);
+  const chipGroup = document.getElementById('activityChips');
+  const hintEl = document.getElementById('recommendedHint');
+
+  selectedActivityType = '';
+
+  if (!ini) {
+    chipGroup.innerHTML = '';
+    hintEl.classList.remove('visible');
+    return;
+  }
+
+  const types = (ini.allowed_activity_types && ini.allowed_activity_types.length)
+    ? ini.allowed_activity_types
+    : ['walk', 'run', 'bike', 'swim', 'wheelchair', 'other'];
+
+  chipGroup.innerHTML = types.map(type =>
+    `<div class="chip" onclick="selectChip(this, '${type}')">${t(activityTypeLabels[type] || type)}</div>`
+  ).join('');
+
+  if (ini.recommended_targets) {
+    const targets = typeof ini.recommended_targets === 'string' ? JSON.parse(ini.recommended_targets) : ini.recommended_targets;
+    const items = Object.entries(targets).map(([k, v]) => `${t(activityTypeLabels[k] || k)}: ${v}`).join(' · ');
+    hintEl.textContent = `${t('detail_recommended')}: ${items}`;
+    hintEl.classList.add('visible');
+  } else {
+    hintEl.classList.remove('visible');
+  }
+}
+
+function selectChip(el, type) {
+  document.querySelectorAll('#activityChips .chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedActivityType = type;
+}
+
+async function submitLog(e) {
+  e.preventDefault();
+  if (!currentUser) {
+    showAuth();
+    return;
+  }
+  if (!selectedActivityType) {
+    alert(t('log_activity_type'));
+    return;
+  }
+
+  const initiativeId = document.getElementById('logInitiative').value;
+  const duration = parseInt(document.getElementById('logDuration').value);
+  const distance = document.getElementById('logDistance').value ? parseFloat(document.getElementById('logDistance').value) : null;
+  const dateVal = document.getElementById('logDate').value;
+  const loggedAt = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+  const notes = document.getElementById('logNotes').value.trim() || null;
+
+  const { error } = await sb.from('activity_logs').insert({
+    user_id: currentUser.id,
+    initiative_id: initiativeId,
+    activity_type: selectedActivityType,
+    duration_minutes: duration,
+    distance_km: distance,
+    logged_at: loggedAt,
+    notes: notes
+  });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const ini = initiatives.find(i => i.id === initiativeId);
+  const msg = t('success_msg').replace('{minutes}', duration).replace('{initiative}', ini ? ini.title : '');
+  document.getElementById('successMsg').textContent = msg;
+  document.getElementById('logFormWrap').style.display = 'none';
+  document.getElementById('successScreen').style.display = '';
+
+  loadKPIs();
+}
+
+function resetLogForm() {
+  document.getElementById('logForm').reset();
+  selectedActivityType = '';
+  document.getElementById('activityChips').innerHTML = '';
+  document.getElementById('recommendedHint').classList.remove('visible');
+  document.getElementById('logFormWrap').style.display = '';
+  document.getElementById('successScreen').style.display = 'none';
+}
+
+// ═══════════════════════════════════════
+// MY LOGS
+// ═══════════════════════════════════════
+async function renderMyLogs() {
+  const emptyEl = document.getElementById('mylogsEmpty');
+  const summaryEl = document.getElementById('mylogsSummary');
+  const tbody = document.getElementById('mylogsTableBody');
+
+  if (!currentUser) {
+    emptyEl.style.display = '';
+    summaryEl.style.display = 'none';
+    emptyEl.querySelector('h3').textContent = t('mylogs_signin') || t('mylogs_empty_title');
+    return;
+  }
+
+  const { data, error } = await sb
+    .from('activity_logs')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('logged_at', { ascending: false });
+
+  if (error || !data || data.length === 0) {
+    emptyEl.style.display = '';
+    summaryEl.style.display = 'none';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  summaryEl.style.display = '';
+
+  const totalMin = data.reduce((s, r) => s + (r.duration_minutes || 0), 0);
+  const totalKm = data.reduce((s, r) => s + (parseFloat(r.distance_km) || 0), 0);
+  document.getElementById('my-total').textContent = data.length;
+  document.getElementById('my-minutes').textContent = totalMin.toLocaleString();
+  document.getElementById('my-km').textContent = totalKm.toFixed(1);
+
+  tbody.innerHTML = data.map(log => {
+    const ini = initiatives.find(i => i.id === log.initiative_id);
+    const typeLabel = t(activityTypeLabels[log.activity_type] || log.activity_type);
+    return `
+      <tr>
+        <td>${formatDateTime(log.logged_at)}</td>
+        <td>${ini ? ini.title : '—'}</td>
+        <td>${typeLabel}</td>
+        <td>${log.duration_minutes} min</td>
+        <td>${log.distance_km ? parseFloat(log.distance_km).toFixed(1) + ' km' : '—'}</td>
+        <td>${log.notes || '—'}</td>
+        <td><button class="delete-btn" onclick="deleteLog('${log.id}')">✕</button></td>
+      </tr>`;
+  }).join('');
+}
+
+async function deleteLog(id) {
+  if (!confirm(t('confirm_delete'))) return;
+  await sb.from('activity_logs').delete().eq('id', id);
+  renderMyLogs();
+  loadKPIs();
+}
+
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  document.querySelectorAll('.nav-links a, .mobile-menu a').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('data-page') === page);
+  });
+  window.scrollTo(0, 0);
+
+  if (page === 'log') {
+    document.getElementById('logFormWrap').style.display = '';
+    document.getElementById('successScreen').style.display = 'none';
+    if (!currentUser && sb) {
+      // Prompt sign-in for logging
+    }
+  }
+  if (page === 'mylogs') renderMyLogs();
+  if (page === 'initiatives') { loadKPIs(); renderInitiatives(); }
+}
+
+function toggleMobileMenu() {
+  document.getElementById('mobileMenu').classList.toggle('open');
+}
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString(currentLang === 'en' ? 'en-GB' : `${currentLang}-CH`);
+}
+function formatDateTime(d) {
+  if (!d) return '—';
+  const locale = currentLang === 'en' ? 'en-GB' : `${currentLang}-CH`;
+  return new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Close modals on overlay click
+document.getElementById('detailModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeDetail();
+});
+document.getElementById('authModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeAuth();
+});
+
+// Close user dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.user-menu')) closeUserMenu();
+});
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+(async function boot() {
+  setLang(currentLang);
+  if (initSupabase()) {
+    await loadAll();
+  }
+
+  // Handle magic link callback
+  if (window.location.hash.includes('access_token') || window.location.search.includes('access_token')) {
+    // Supabase handles this automatically via onAuthStateChange
+  }
+})();
+</script>
+</body>
+</html>
