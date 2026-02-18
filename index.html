@@ -768,6 +768,17 @@ body {
 }
 .user-dropdown a:hover { background: var(--lci-bg-alt); }
 .user-dropdown a.danger { color: #dc3545; }
+.user-dropdown-profile {
+  padding: 10px 16px; border-bottom: 1px solid var(--lci-border);
+}
+.user-dropdown-profile label {
+  display: block; font-size: 0.75rem; color: var(--lci-gray);
+  margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.user-dropdown-profile input {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--lci-border);
+  border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;
+}
 
 /* ─── LOADING ─── */
 .spinner {
@@ -888,10 +899,6 @@ body {
     <div class="log-form-wrap" id="logFormWrap">
       <form id="logForm" onsubmit="submitLog(event)">
         <div class="form-group">
-          <label data-i18n="log_name">Dein Name *</label>
-          <input type="text" id="logName" required placeholder="Vor- und Nachname" data-i18n-placeholder="log_name_placeholder">
-        </div>
-        <div class="form-group">
           <label data-i18n="log_initiative">Initiative *</label>
           <select id="logInitiative" required onchange="onInitiativeChange()">
             <option value="" data-i18n="log_select_initiative">Initiative wählen…</option>
@@ -912,9 +919,9 @@ body {
             <div class="helper" data-i18n="log_distance_hint">Optional — nicht alle Aktivitäten tracken Distanz</div>
           </div>
           <div class="form-group">
-            <label data-i18n="log_date">Datum / Uhrzeit</label>
-            <input type="datetime-local" id="logDate">
-            <div class="helper" data-i18n="log_date_hint">Standard: jetzt</div>
+            <label data-i18n="log_date">Datum</label>
+            <input type="date" id="logDate">
+            <div class="helper" data-i18n="log_date_hint">Standard: heute</div>
           </div>
         </div>
         <div class="recommended-hint" id="recommendedHint"></div>
@@ -1231,11 +1238,11 @@ const i18n = {
     card_minutes: 'Min.', card_km: 'km', card_participants: 'Teilnehmer',
     card_log_btn: 'Loggen',
     log_title: 'Aktivität erfassen', log_subtitle: 'Schnell und einfach — in unter 30 Sekunden',
-    log_name: 'Dein Name *', log_name_placeholder: 'Vor- und Nachname',
+    profile_name: 'Dein Name', profile_name_placeholder: 'Vor- und Nachname', profile_name_missing: 'Bitte gib deinen Namen im Profil ein (Klick auf dein Avatar oben rechts).',
     log_initiative: 'Initiative *', log_select_initiative: 'Initiative wählen…',
     log_activity_type: 'Aktivitätstyp *', log_duration: 'Dauer (Minuten) *', log_distance: 'Distanz (km)',
     log_distance_hint: 'Optional — nicht alle Aktivitäten tracken Distanz',
-    log_date: 'Datum / Uhrzeit', log_date_hint: 'Standard: jetzt',
+    log_date: 'Datum', log_date_hint: 'Standard: heute',
     log_notes: 'Notizen', log_notes_placeholder: 'Optional…', log_submit: 'Aktivität speichern',
     log_signin_required: 'Bitte melde dich an, um Aktivitäten zu erfassen.',
     success_title: 'Gespeichert!', success_log_another: 'Weitere Aktivität erfassen', success_back: 'Zurück zur Übersicht',
@@ -1277,11 +1284,11 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
     card_log_btn: 'Logger',
     log_title: 'Saisir activité', log_subtitle: 'Rapide et simple — en moins de 30 secondes',
-    log_name: 'Votre nom *', log_name_placeholder: 'Prénom et nom',
+    profile_name: 'Votre nom', profile_name_placeholder: 'Prénom et nom', profile_name_missing: 'Veuillez entrer votre nom dans le profil (cliquez sur votre avatar en haut à droite).',
     log_initiative: 'Initiative *', log_select_initiative: 'Choisir une initiative…',
     log_activity_type: 'Type d\'activité *', log_duration: 'Durée (minutes) *', log_distance: 'Distance (km)',
     log_distance_hint: 'Optionnel — pas toutes les activités mesurent la distance',
-    log_date: 'Date / Heure', log_date_hint: 'Par défaut : maintenant',
+    log_date: 'Date', log_date_hint: 'Par défaut : aujourd\'hui',
     log_notes: 'Notes', log_notes_placeholder: 'Optionnel…', log_submit: 'Enregistrer activité',
     log_signin_required: 'Veuillez vous connecter pour saisir des activités.',
     success_title: 'Enregistré !', success_log_another: 'Saisir une autre activité', success_back: 'Retour à l\'aperçu',
@@ -1323,11 +1330,11 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'partecipanti',
     card_log_btn: 'Registra',
     log_title: 'Registra attività', log_subtitle: 'Veloce e semplice — in meno di 30 secondi',
-    log_name: 'Il tuo nome *', log_name_placeholder: 'Nome e cognome',
+    profile_name: 'Il tuo nome', profile_name_placeholder: 'Nome e cognome', profile_name_missing: 'Inserisci il tuo nome nel profilo (clicca sul tuo avatar in alto a destra).',
     log_initiative: 'Iniziativa *', log_select_initiative: 'Scegli un\'iniziativa…',
     log_activity_type: 'Tipo di attività *', log_duration: 'Durata (minuti) *', log_distance: 'Distanza (km)',
     log_distance_hint: 'Opzionale — non tutte le attività misurano la distanza',
-    log_date: 'Data / Ora', log_date_hint: 'Predefinito: adesso',
+    log_date: 'Data', log_date_hint: 'Predefinito: oggi',
     log_notes: 'Note', log_notes_placeholder: 'Opzionale…', log_submit: 'Salva attività',
     log_signin_required: 'Effettua l\'accesso per registrare attività.',
     success_title: 'Salvato!', success_log_another: 'Registra un\'altra attività', success_back: 'Torna alla panoramica',
@@ -1369,11 +1376,11 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
     card_log_btn: 'Log',
     log_title: 'Log Activity', log_subtitle: 'Quick and simple — under 30 seconds',
-    log_name: 'Your Name *', log_name_placeholder: 'First and last name',
+    profile_name: 'Your Name', profile_name_placeholder: 'First and last name', profile_name_missing: 'Please enter your name in your profile (click your avatar top right).',
     log_initiative: 'Initiative *', log_select_initiative: 'Select initiative…',
     log_activity_type: 'Activity Type *', log_duration: 'Duration (minutes) *', log_distance: 'Distance (km)',
     log_distance_hint: 'Optional — not all activities track distance',
-    log_date: 'Date / Time', log_date_hint: 'Default: now',
+    log_date: 'Date', log_date_hint: 'Default: today',
     log_notes: 'Notes', log_notes_placeholder: 'Optional…', log_submit: 'Save Activity',
     log_signin_required: 'Please sign in to log activities.',
     success_title: 'Saved!', success_log_another: 'Log Another Activity', success_back: 'Back to Dashboard',
@@ -1480,18 +1487,39 @@ function saveSetup(e) {
 function updateAuthUI() {
   const area = document.getElementById('authArea');
   if (currentUser) {
-    const initials = (currentUser.email || '?').substring(0, 2).toUpperCase();
+    const savedName = localStorage.getItem('lions_user_name') || '';
+    const initials = savedName ? savedName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
+      : (currentUser.email || '?').substring(0, 2).toUpperCase();
     area.innerHTML = `
       <div class="user-menu">
         <div class="user-avatar" onclick="toggleUserMenu()">${initials}</div>
         <div class="user-dropdown" id="userDropdown">
           <div class="user-dropdown-header">${currentUser.email}</div>
+          <div class="user-dropdown-profile">
+            <label data-i18n="profile_name">${t('profile_name')}</label>
+            <input type="text" id="profileNameInput" value="${savedName.replace(/"/g, '&quot;')}" placeholder="${t('profile_name_placeholder')}" data-i18n-placeholder="profile_name_placeholder" onchange="saveProfileName(this.value)">
+          </div>
           <a href="javascript:void(0)" onclick="navigate('mylogs');closeUserMenu()" data-i18n="nav_mylogs">${t('nav_mylogs')}</a>
           <a href="javascript:void(0)" class="danger" onclick="signOut()" data-i18n="nav_signout">${t('nav_signout')}</a>
         </div>
       </div>`;
+    // Prompt for name if not set yet
+    if (!savedName) {
+      setTimeout(() => {
+        document.getElementById('userDropdown')?.classList.add('open');
+        document.getElementById('profileNameInput')?.focus();
+      }, 500);
+    }
   } else {
     area.innerHTML = `<button class="auth-btn" onclick="showAuth()" data-i18n="nav_signin">${t('nav_signin')}</button>`;
+  }
+}
+
+function saveProfileName(val) {
+  const name = val.trim();
+  if (name) {
+    localStorage.setItem('lions_user_name', name);
+    updateAuthUI();
   }
 }
 
@@ -1798,16 +1826,25 @@ async function submitLog(e) {
     return;
   }
 
-  const userName = document.getElementById('logName').value.trim();
+  const userName = localStorage.getItem('lions_user_name') || '';
+  if (!userName) {
+    alert(t('profile_name_missing'));
+    return;
+  }
   const initiativeId = document.getElementById('logInitiative').value;
   const duration = parseInt(document.getElementById('logDuration').value);
   const distance = document.getElementById('logDistance').value ? parseFloat(document.getElementById('logDistance').value) : null;
   const dateVal = document.getElementById('logDate').value;
-  const loggedAt = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+  // Always set time to 12:00 noon
+  let loggedAt;
+  if (dateVal) {
+    loggedAt = new Date(dateVal + 'T12:00:00').toISOString();
+  } else {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    loggedAt = today.toISOString();
+  }
   const notes = document.getElementById('logNotes').value.trim() || null;
-
-  // Remember name for next time
-  localStorage.setItem('lions_user_name', userName);
 
   const { error } = await sb.from('activity_logs').insert({
     user_id: currentUser.id,
@@ -2189,9 +2226,6 @@ function navigate(page) {
   if (page === 'log') {
     document.getElementById('logFormWrap').style.display = '';
     document.getElementById('successScreen').style.display = 'none';
-    // Pre-fill name from localStorage
-    const savedName = localStorage.getItem('lions_user_name');
-    if (savedName) document.getElementById('logName').value = savedName;
     if (!currentUser && sb) {
       // Prompt sign-in for logging
     }
