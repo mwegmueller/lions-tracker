@@ -1608,6 +1608,7 @@ async function submitLog(e) {
 
   const { error } = await sb.from('activity_logs').insert({
     user_id: currentUser.id,
+    user_email: currentUser.email || currentUser.user_metadata?.email || null,
     initiative_id: initiativeId,
     activity_type: selectedActivityType,
     duration_minutes: duration,
@@ -1736,7 +1737,7 @@ async function renderHighscore() {
   const iniFilter = document.getElementById('hsFilterInitiative').value;
   const typeFilter = document.getElementById('hsFilterType').value;
 
-  let query = sb.from('activity_logs').select('user_id, duration_minutes, distance_km, activity_type, initiative_id');
+  let query = sb.from('activity_logs').select('user_id, user_email, duration_minutes, distance_km, activity_type, initiative_id');
   if (iniFilter !== 'all') query = query.eq('initiative_id', iniFilter);
   if (typeFilter !== 'all') query = query.eq('activity_type', typeFilter);
 
@@ -1746,29 +1747,37 @@ async function renderHighscore() {
     return;
   }
 
-  // Group by user
+  // Group by user_email (fall back to user_id if no email)
   const grouped = {};
   data.forEach(row => {
-    if (!grouped[row.user_id]) grouped[row.user_id] = { minutes: 0, km: 0, count: 0 };
-    grouped[row.user_id].minutes += row.duration_minutes || 0;
-    grouped[row.user_id].km += parseFloat(row.distance_km) || 0;
-    grouped[row.user_id].count += 1;
+    const key = row.user_email || row.user_id;
+    if (!grouped[key]) grouped[key] = { minutes: 0, km: 0, count: 0, email: row.user_email, user_id: row.user_id };
+    grouped[key].minutes += row.duration_minutes || 0;
+    grouped[key].km += parseFloat(row.distance_km) || 0;
+    grouped[key].count += 1;
   });
 
   // Sort by current mode
   const sorted = Object.entries(grouped).sort((a, b) => b[1][hsMode] - a[1][hsMode]);
 
-  // Try to get emails for display (best effort)
-  const userEmails = {};
-  // We can't read auth.users from client, so we show anonymized names
-  sorted.forEach(([uid], i) => {
-    userEmails[uid] = `${t('card_participants')} ${i + 1}`;
+  // Build display names from email
+  const userNames = {};
+  sorted.forEach(([key, stats], i) => {
+    if (stats.email) {
+      // Show part before @ as display name
+      const name = stats.email.split('@')[0];
+      // Capitalize first letter
+      userNames[key] = name.charAt(0).toUpperCase() + name.slice(1);
+    } else {
+      userNames[key] = `${t('card_participants')} ${i + 1}`;
+    }
   });
-  // If the current user is in the list, show "Du / You"
+  // Mark the current user with a star
   if (currentUser) {
-    const meLabels = { de: 'Du', fr: 'Toi', it: 'Tu', en: 'You' };
-    if (grouped[currentUser.id]) {
-      userEmails[currentUser.id] = meLabels[currentLang] || 'You';
+    const meKey = currentUser.email || currentUser.id;
+    const meLabels = { de: ' (Du)', fr: ' (Toi)', it: ' (Tu)', en: ' (You)' };
+    if (grouped[meKey]) {
+      userNames[meKey] = userNames[meKey] + (meLabels[currentLang] || ' (You)');
     }
   }
 
@@ -1786,7 +1795,7 @@ async function renderHighscore() {
       html += `
         <div class="hs-podium-item ${medals[i]}">
           <div class="hs-rank">${i + 1}</div>
-          <div class="hs-podium-name">${userEmails[uid]}</div>
+          <div class="hs-podium-name">${userNames[uid]}</div>
           <div class="hs-podium-value">${val}</div>
           <div class="hs-podium-unit">${unit}</div>
           <div class="hs-podium-activities">${stats.count} ${t('hs_activities')}</div>
@@ -1803,7 +1812,7 @@ async function renderHighscore() {
       html += `
         <div class="hs-list-item">
           <div class="hs-list-rank">${i + 4}</div>
-          <div class="hs-list-name">${userEmails[uid]}</div>
+          <div class="hs-list-name">${userNames[uid]}</div>
           <div class="hs-list-value">${val} <span class="hs-list-detail">${unit}</span></div>
           <div class="hs-list-detail">${stats.count} ${t('hs_activities')}</div>
         </div>`;
