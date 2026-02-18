@@ -163,7 +163,7 @@ body {
   display: flex; align-items: center; gap: 10px; cursor: pointer;
   white-space: nowrap;
 }
-.nav-logo svg { flex-shrink: 0; }
+.nav-logo-img { height: 36px; width: auto; flex-shrink: 0; }
 .nav-links { display: flex; gap: 4px; }
 .nav-links a {
   color: rgba(255,255,255,0.85); text-decoration: none;
@@ -824,10 +824,7 @@ body {
 <nav class="nav">
   <div class="nav-inner">
     <div class="nav-logo" onclick="navigate('initiatives')">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <circle cx="14" cy="14" r="13" stroke="#EBB700" stroke-width="2"/>
-        <text x="14" y="18" text-anchor="middle" fill="#EBB700" font-size="12" font-weight="700">L</text>
-      </svg>
+      <img src="lions-logo.png" alt="Lions Clubs International" class="nav-logo-img">
       <span>LIONS ACTIVITY TRACKER</span>
     </div>
     <div class="nav-links" id="navLinks">
