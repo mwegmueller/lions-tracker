@@ -546,6 +546,87 @@ body {
 .about-content ul { margin: 0 0 16px 24px; color: #444; }
 .about-content li { margin-bottom: 8px; }
 
+/* ─── HIGHSCORE ─── */
+.hs-toggle {
+  display: flex; gap: 4px;
+  background: rgba(0,51,141,0.08); border-radius: 8px; padding: 3px;
+}
+.hs-toggle-btn {
+  background: none; border: none; padding: 8px 16px;
+  border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+  color: var(--lci-gray); cursor: pointer; transition: all 0.2s;
+  white-space: nowrap;
+}
+.hs-toggle-btn.active {
+  background: var(--lci-blue); color: #fff;
+}
+.hs-filter {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
+}
+.hs-podium {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 16px; margin-bottom: 32px; padding: 20px 0;
+}
+.hs-podium-item {
+  display: flex; flex-direction: column; align-items: center;
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); box-shadow: var(--lci-shadow);
+  padding: 20px 24px 16px; min-width: 140px; position: relative;
+}
+.hs-podium-item.gold { border-top: 4px solid var(--lci-gold); order: 2; }
+.hs-podium-item.silver { border-top: 4px solid #C0C0C0; order: 1; }
+.hs-podium-item.bronze { border-top: 4px solid #CD7F32; order: 3; }
+.hs-podium-item.gold .hs-rank { background: var(--lci-gold); color: var(--lci-blue); }
+.hs-podium-item.silver .hs-rank { background: #C0C0C0; color: #333; }
+.hs-podium-item.bronze .hs-rank { background: #CD7F32; color: #fff; }
+.hs-rank {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1rem; margin-bottom: 10px;
+}
+.hs-podium-name {
+  font-weight: 700; color: var(--lci-blue); font-size: 1rem;
+  margin-bottom: 4px; text-align: center;
+}
+.hs-podium-value {
+  font-size: 1.6rem; font-weight: 800; color: var(--lci-blue);
+  line-height: 1.2;
+}
+.hs-podium-unit {
+  font-size: 0.8rem; color: var(--lci-gray); font-weight: 500;
+}
+.hs-podium-activities {
+  font-size: 0.75rem; color: var(--lci-gray-light); margin-top: 4px;
+}
+.hs-list {
+  background: #fff; border: 1px solid var(--lci-border);
+  border-radius: var(--lci-radius); box-shadow: var(--lci-shadow);
+  overflow: hidden;
+}
+.hs-list-item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 20px; border-bottom: 1px solid var(--lci-border);
+  transition: background 0.2s;
+}
+.hs-list-item:last-child { border-bottom: none; }
+.hs-list-item:hover { background: var(--lci-bg-alt); }
+.hs-list-rank {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--lci-bg-alt); color: var(--lci-gray);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+}
+.hs-list-name { flex: 1; font-weight: 600; color: #333; }
+.hs-list-value { font-weight: 700; color: var(--lci-blue); font-size: 1.05rem; }
+.hs-list-detail { font-size: 0.8rem; color: var(--lci-gray); margin-left: 4px; }
+.hs-empty { text-align: center; padding: 60px 20px; color: var(--lci-gray); }
+@media (max-width: 600px) {
+  .hs-podium { flex-direction: column; align-items: center; }
+  .hs-podium-item { order: unset !important; width: 100%; }
+  .hs-toggle { flex-wrap: wrap; }
+  .page-header .container { flex-direction: column; align-items: flex-start; }
+}
+
 /* ─── AUTH MODAL ─── */
 .auth-modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -662,6 +743,7 @@ body {
       <a onclick="navigate('initiatives')" data-page="initiatives" data-i18n="nav_initiatives">Initiativen</a>
       <a onclick="navigate('log')" data-page="log" data-i18n="nav_log">Aktivität erfassen</a>
       <a onclick="navigate('mylogs')" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
+      <a onclick="navigate('highscore')" data-page="highscore" data-i18n="nav_highscore">Highscore</a>
       <a onclick="navigate('about')" data-page="about" data-i18n="nav_about">Über uns</a>
     </div>
     <div class="nav-right">
@@ -686,6 +768,7 @@ body {
   <a onclick="navigate('initiatives');closeMobileMenu()" data-page="initiatives" data-i18n="nav_initiatives">Initiativen</a>
   <a onclick="navigate('log');closeMobileMenu()" data-page="log" data-i18n="nav_log">Aktivität erfassen</a>
   <a onclick="navigate('mylogs');closeMobileMenu()" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
+  <a onclick="navigate('highscore');closeMobileMenu()" data-page="highscore" data-i18n="nav_highscore">Highscore</a>
   <a onclick="navigate('about');closeMobileMenu()" data-page="about" data-i18n="nav_about">Über uns</a>
 </div>
 
@@ -843,6 +926,42 @@ body {
   </div>
 </div>
 
+<!-- ═══ PAGE: HIGHSCORE ═══ -->
+<div class="page" id="page-highscore">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="highscore_title">Highscore</h1>
+        <div class="subtitle" data-i18n="highscore_subtitle">Rangliste aller Teilnehmer</div>
+      </div>
+      <div class="hs-toggle">
+        <button class="hs-toggle-btn active" onclick="setHsMode('minutes')" id="hsModeMinutes" data-i18n="kpi_minutes">Minuten total</button>
+        <button class="hs-toggle-btn" onclick="setHsMode('km')" id="hsModeKm" data-i18n="kpi_km">Kilometer total</button>
+        <button class="hs-toggle-btn" onclick="setHsMode('count')" id="hsModeCount" data-i18n="kpi_total">Aktivitäten total</button>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="hs-filter">
+      <div class="filter-group">
+        <label data-i18n="log_initiative">Initiative:</label>
+        <select id="hsFilterInitiative" onchange="renderHighscore()">
+          <option value="all" data-i18n="filter_all">Alle</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label data-i18n="log_activity_type">Aktivitätstyp:</label>
+        <select id="hsFilterType" onchange="renderHighscore()">
+          <option value="all" data-i18n="filter_all">Alle</option>
+        </select>
+      </div>
+    </div>
+    <div id="highscoreContent">
+      <div class="loading-overlay"><span class="spinner"></span></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ PAGE: ABOUT ═══ -->
 <div class="page" id="page-about">
   <div class="page-header">
@@ -975,6 +1094,8 @@ const i18n = {
     auth_sent_title: 'Link gesendet!', auth_sent_text: 'Überprüfe dein E-Mail-Postfach und klicke den Link.', auth_close: 'Schliessen',
     type_walk: 'Gehen', type_run: 'Laufen', type_bike: 'Velo', type_swim: 'Schwimmen', type_wheelchair: 'Rollstuhl', type_other: 'Andere',
     confirm_delete: 'Diese Aktivität wirklich löschen?',
+    nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Rangliste aller Teilnehmer',
+    hs_activities: 'Aktivitäten', hs_no_data: 'Noch keine Aktivitäten erfasst.',
   },
   fr: {
     nav_initiatives: 'Initiatives', nav_log: 'Saisir activité', nav_mylogs: 'Mes logs', nav_about: 'À propos',
@@ -1009,6 +1130,8 @@ const i18n = {
     auth_sent_title: 'Lien envoyé !', auth_sent_text: 'Vérifiez votre boîte e-mail et cliquez sur le lien.', auth_close: 'Fermer',
     type_walk: 'Marche', type_run: 'Course', type_bike: 'Vélo', type_swim: 'Natation', type_wheelchair: 'Fauteuil roulant', type_other: 'Autre',
     confirm_delete: 'Voulez-vous vraiment supprimer cette activité ?',
+    nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Classement de tous les participants',
+    hs_activities: 'activités', hs_no_data: 'Aucune activité enregistrée.',
   },
   it: {
     nav_initiatives: 'Iniziative', nav_log: 'Registra attività', nav_mylogs: 'I miei log', nav_about: 'Chi siamo',
@@ -1043,6 +1166,8 @@ const i18n = {
     auth_sent_title: 'Link inviato!', auth_sent_text: 'Controlla la tua casella e-mail e clicca il link.', auth_close: 'Chiudi',
     type_walk: 'Camminata', type_run: 'Corsa', type_bike: 'Bicicletta', type_swim: 'Nuoto', type_wheelchair: 'Sedia a rotelle', type_other: 'Altro',
     confirm_delete: 'Vuoi davvero eliminare questa attività?',
+    nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Classifica di tutti i partecipanti',
+    hs_activities: 'attività', hs_no_data: 'Nessuna attività registrata.',
   },
   en: {
     nav_initiatives: 'Initiatives', nav_log: 'Log Activity', nav_mylogs: 'My Logs', nav_about: 'About',
@@ -1077,6 +1202,8 @@ const i18n = {
     auth_sent_title: 'Link sent!', auth_sent_text: 'Check your email inbox and click the link.', auth_close: 'Close',
     type_walk: 'Walk', type_run: 'Run', type_bike: 'Bike', type_swim: 'Swim', type_wheelchair: 'Wheelchair', type_other: 'Other',
     confirm_delete: 'Really delete this activity?',
+    nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Leaderboard of all participants',
+    hs_activities: 'activities', hs_no_data: 'No activities logged yet.',
   }
 };
 
@@ -1572,6 +1699,122 @@ async function deleteLog(id) {
 }
 
 // ═══════════════════════════════════════
+// HIGHSCORE
+// ═══════════════════════════════════════
+let hsMode = 'minutes';
+
+function setHsMode(mode) {
+  hsMode = mode;
+  document.querySelectorAll('.hs-toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('hsMode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+  renderHighscore();
+}
+
+function populateHsFilters() {
+  const iniSel = document.getElementById('hsFilterInitiative');
+  if (!iniSel) return;
+  iniSel.innerHTML = `<option value="all">${t('filter_all')}</option>`;
+  initiatives.forEach(i => {
+    iniSel.innerHTML += `<option value="${i.id}">${i.title}</option>`;
+  });
+  const typeSel = document.getElementById('hsFilterType');
+  typeSel.innerHTML = `<option value="all">${t('filter_all')}</option>`;
+  const types = ['walk','run','bike','swim','wheelchair','other'];
+  types.forEach(ty => {
+    typeSel.innerHTML += `<option value="${ty}">${t(activityTypeLabels[ty] || ty)}</option>`;
+  });
+}
+
+async function renderHighscore() {
+  const container = document.getElementById('highscoreContent');
+  container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span></div>';
+
+  if (!sb) { container.innerHTML = `<div class="hs-empty">${t('hs_no_data')}</div>`; return; }
+
+  populateHsFilters();
+
+  const iniFilter = document.getElementById('hsFilterInitiative').value;
+  const typeFilter = document.getElementById('hsFilterType').value;
+
+  let query = sb.from('activity_logs').select('user_id, duration_minutes, distance_km, activity_type, initiative_id');
+  if (iniFilter !== 'all') query = query.eq('initiative_id', iniFilter);
+  if (typeFilter !== 'all') query = query.eq('activity_type', typeFilter);
+
+  const { data, error } = await query;
+  if (error || !data || data.length === 0) {
+    container.innerHTML = `<div class="hs-empty"><h3>${t('hs_no_data')}</h3></div>`;
+    return;
+  }
+
+  // Group by user
+  const grouped = {};
+  data.forEach(row => {
+    if (!grouped[row.user_id]) grouped[row.user_id] = { minutes: 0, km: 0, count: 0 };
+    grouped[row.user_id].minutes += row.duration_minutes || 0;
+    grouped[row.user_id].km += parseFloat(row.distance_km) || 0;
+    grouped[row.user_id].count += 1;
+  });
+
+  // Sort by current mode
+  const sorted = Object.entries(grouped).sort((a, b) => b[1][hsMode] - a[1][hsMode]);
+
+  // Try to get emails for display (best effort)
+  const userEmails = {};
+  // We can't read auth.users from client, so we show anonymized names
+  sorted.forEach(([uid], i) => {
+    userEmails[uid] = `${t('card_participants')} ${i + 1}`;
+  });
+  // If the current user is in the list, show "Du / You"
+  if (currentUser) {
+    const meLabels = { de: 'Du', fr: 'Toi', it: 'Tu', en: 'You' };
+    if (grouped[currentUser.id]) {
+      userEmails[currentUser.id] = meLabels[currentLang] || 'You';
+    }
+  }
+
+  const unitLabels = { minutes: 'min', km: 'km', count: '' };
+  const unit = unitLabels[hsMode];
+
+  let html = '';
+
+  // Podium (top 3)
+  if (sorted.length >= 1) {
+    const medals = ['gold', 'silver', 'bronze'];
+    html += '<div class="hs-podium">';
+    sorted.slice(0, 3).forEach(([uid, stats], i) => {
+      const val = hsMode === 'km' ? stats[hsMode].toFixed(1) : stats[hsMode].toLocaleString();
+      html += `
+        <div class="hs-podium-item ${medals[i]}">
+          <div class="hs-rank">${i + 1}</div>
+          <div class="hs-podium-name">${userEmails[uid]}</div>
+          <div class="hs-podium-value">${val}</div>
+          <div class="hs-podium-unit">${unit}</div>
+          <div class="hs-podium-activities">${stats.count} ${t('hs_activities')}</div>
+        </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Full list (4th place onwards)
+  if (sorted.length > 3) {
+    html += '<div class="hs-list">';
+    sorted.slice(3).forEach(([uid, stats], i) => {
+      const val = hsMode === 'km' ? stats[hsMode].toFixed(1) : stats[hsMode].toLocaleString();
+      html += `
+        <div class="hs-list-item">
+          <div class="hs-list-rank">${i + 4}</div>
+          <div class="hs-list-name">${userEmails[uid]}</div>
+          <div class="hs-list-value">${val} <span class="hs-list-detail">${unit}</span></div>
+          <div class="hs-list-detail">${stats.count} ${t('hs_activities')}</div>
+        </div>`;
+    });
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
 function navigate(page) {
@@ -1591,6 +1834,7 @@ function navigate(page) {
     }
   }
   if (page === 'mylogs') renderMyLogs();
+  if (page === 'highscore') renderHighscore();
   if (page === 'initiatives') { loadKPIs(); renderInitiatives(); }
 }
 
@@ -1611,7 +1855,7 @@ function formatDate(d) {
 function formatDateTime(d) {
   if (!d) return '—';
   const locale = currentLang === 'en' ? 'en-GB' : `${currentLang}-CH`;
-  return new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // Close modals on overlay click
