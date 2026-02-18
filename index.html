@@ -677,9 +677,34 @@ body {
   background: #f8d7da; color: #dc3545;
 }
 .admin-btn.delete:hover { background: #f1b0b7; }
+.admin-tabs {
+  display: flex; gap: 4px; margin-bottom: 20px;
+  border-bottom: 2px solid var(--lci-border); padding-bottom: 0;
+}
+.admin-tab {
+  padding: 10px 20px; border: none; background: none; cursor: pointer;
+  font-size: 0.95rem; font-weight: 600; color: var(--lci-gray);
+  border-bottom: 3px solid transparent; margin-bottom: -2px;
+  transition: all 0.2s;
+}
+.admin-tab:hover { color: var(--lci-blue); }
+.admin-tab.active {
+  color: var(--lci-blue); border-bottom-color: var(--lci-gold);
+}
+.admin-checkbox-group {
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.admin-checkbox-group label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.9rem; cursor: pointer;
+}
+.admin-checkbox-group input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: var(--lci-blue);
+}
 @media (max-width: 768px) {
   .admin-table { font-size: 0.8rem; }
   .admin-table th, .admin-table td { padding: 8px 8px; }
+  .admin-tabs { overflow-x: auto; }
 }
 
 /* ─── AUTH MODAL ─── */
@@ -1072,28 +1097,65 @@ body {
     </div>
     <!-- Admin Content (hidden until login) -->
     <div id="adminContent" style="display:none;">
-      <div class="admin-toolbar">
-        <input type="text" id="adminSearch" placeholder="Nach Name suchen…" data-i18n-placeholder="admin_search_placeholder" oninput="renderAdminTable()">
+      <!-- Admin Tabs -->
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchAdminTab('activities')" id="adminTabActivities" data-i18n="admin_tab_activities">Aktivitäten</button>
+        <button class="admin-tab" onclick="switchAdminTab('initiatives')" id="adminTabInitiatives" data-i18n="admin_tab_initiatives">Initiativen</button>
       </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th data-i18n="admin_col_name">Name</th>
-              <th data-i18n="admin_col_initiative">Initiative</th>
-              <th data-i18n="admin_col_type">Typ</th>
-              <th data-i18n="admin_col_duration">Dauer</th>
-              <th data-i18n="admin_col_distance">Distanz</th>
-              <th data-i18n="admin_col_date">Datum</th>
-              <th data-i18n="admin_col_notes">Notizen</th>
-              <th data-i18n="admin_col_actions">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody id="adminTableBody"></tbody>
-        </table>
+
+      <!-- Activities Tab -->
+      <div id="adminActivitiesTab">
+        <div class="admin-toolbar">
+          <input type="text" id="adminSearch" placeholder="Nach Name suchen…" data-i18n-placeholder="admin_search_placeholder" oninput="renderAdminTable()">
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin_col_name">Name</th>
+                <th data-i18n="admin_col_initiative">Initiative</th>
+                <th data-i18n="admin_col_type">Typ</th>
+                <th data-i18n="admin_col_duration">Dauer</th>
+                <th data-i18n="admin_col_distance">Distanz</th>
+                <th data-i18n="admin_col_date">Datum</th>
+                <th data-i18n="admin_col_notes">Notizen</th>
+                <th data-i18n="admin_col_actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+          </table>
+        </div>
+        <div id="adminEmpty" class="hs-empty" style="display:none;">
+          <h3 data-i18n="admin_no_entries">Keine Einträge vorhanden.</h3>
+        </div>
       </div>
-      <div id="adminEmpty" class="hs-empty" style="display:none;">
-        <h3 data-i18n="admin_no_entries">Keine Einträge vorhanden.</h3>
+
+      <!-- Initiatives Tab -->
+      <div id="adminInitiativesTab" style="display:none;">
+        <div class="admin-toolbar">
+          <button class="btn-primary" onclick="openInitiativeEdit()" style="margin-left:auto;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="admin_ini_add">Neue Initiative</span>
+          </button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin_ini_col_title">Titel</th>
+                <th data-i18n="admin_ini_col_status">Status</th>
+                <th data-i18n="admin_ini_col_period">Zeitraum</th>
+                <th data-i18n="admin_ini_col_types">Aktivitätstypen</th>
+                <th data-i18n="admin_ini_col_tags">Tags</th>
+                <th data-i18n="admin_col_actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="adminIniTableBody"></tbody>
+          </table>
+        </div>
+        <div id="adminIniEmpty" class="hs-empty" style="display:none;">
+          <h3 data-i18n="admin_no_entries">Keine Einträge vorhanden.</h3>
+        </div>
       </div>
     </div>
   </div>
@@ -1136,6 +1198,70 @@ body {
         <div style="display:flex; gap:12px; margin-top:16px;">
           <button type="submit" class="btn-primary" style="flex:1; justify-content:center;" data-i18n="admin_save">Speichern</button>
           <button type="button" class="btn-secondary" style="flex:1; justify-content:center;" onclick="closeAdminEdit()" data-i18n="admin_cancel">Abbrechen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN INITIATIVE EDIT MODAL ═══ -->
+<div class="modal-overlay" id="adminIniEditModal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h2 id="adminIniEditTitle" data-i18n="admin_ini_add">Neue Initiative</h2>
+      <button class="modal-close" onclick="closeInitiativeEdit()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="adminIniEditForm" onsubmit="saveInitiativeEdit(event)">
+        <input type="hidden" id="iniEditId">
+        <div class="form-group">
+          <label data-i18n="admin_ini_col_title">Titel *</label>
+          <input type="text" id="iniEditTitle" required>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_ini_short_desc">Kurzbeschreibung</label>
+          <input type="text" id="iniEditShortDesc">
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_ini_long_desc">Beschreibung</label>
+          <textarea id="iniEditLongDesc" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_ini_col_status">Status</label>
+          <select id="iniEditStatus">
+            <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="ended">Ended</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label data-i18n="admin_ini_date_start">Start</label>
+            <input type="date" id="iniEditDateStart">
+          </div>
+          <div class="form-group">
+            <label data-i18n="admin_ini_date_end">Ende</label>
+            <input type="date" id="iniEditDateEnd">
+          </div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_ini_col_types">Aktivitätstypen</label>
+          <div class="admin-checkbox-group" id="iniEditTypes">
+            <label><input type="checkbox" value="walk"> <span data-i18n="type_walk">Gehen</span></label>
+            <label><input type="checkbox" value="run"> <span data-i18n="type_run">Laufen</span></label>
+            <label><input type="checkbox" value="bike"> <span data-i18n="type_bike">Velo</span></label>
+            <label><input type="checkbox" value="swim"> <span data-i18n="type_swim">Schwimmen</span></label>
+            <label><input type="checkbox" value="wheelchair"> <span data-i18n="type_wheelchair">Rollstuhl</span></label>
+            <label><input type="checkbox" value="other"> <span data-i18n="type_other">Andere</span></label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_ini_col_tags">Tags <span style="font-weight:400;color:var(--lci-gray);">(kommagetrennt)</span></label>
+          <input type="text" id="iniEditTags" placeholder="z.B. environment, bern">
+        </div>
+        <div style="display:flex; gap:12px; margin-top:16px;">
+          <button type="submit" class="btn-primary" style="flex:1; justify-content:center;" data-i18n="admin_save">Speichern</button>
+          <button type="button" class="btn-secondary" style="flex:1; justify-content:center;" onclick="closeInitiativeEdit()" data-i18n="admin_cancel">Abbrechen</button>
         </div>
       </form>
     </div>
@@ -1272,6 +1398,13 @@ const i18n = {
     admin_edit: 'Bearbeiten', admin_delete: 'Löschen', admin_save: 'Speichern', admin_cancel: 'Abbrechen',
     admin_confirm_delete: 'Diese Aktivität wirklich löschen?', admin_no_entries: 'Keine Einträge vorhanden.',
     admin_search_placeholder: 'Nach Name suchen…',
+    admin_tab_activities: 'Aktivitäten', admin_tab_initiatives: 'Initiativen',
+    admin_ini_add: 'Neue Initiative', admin_ini_edit: 'Initiative bearbeiten',
+    admin_ini_col_title: 'Titel', admin_ini_col_status: 'Status', admin_ini_col_period: 'Zeitraum',
+    admin_ini_col_types: 'Aktivitätstypen', admin_ini_col_tags: 'Tags',
+    admin_ini_short_desc: 'Kurzbeschreibung', admin_ini_long_desc: 'Beschreibung',
+    admin_ini_date_start: 'Start', admin_ini_date_end: 'Ende',
+    admin_ini_confirm_delete: 'Diese Initiative wirklich löschen? Alle zugehörigen Aktivitäten bleiben erhalten.',
   },
   fr: {
     nav_initiatives: 'Initiatives', nav_log: 'Saisir activité', nav_mylogs: 'Mes logs', nav_about: 'À propos',
@@ -1318,6 +1451,13 @@ const i18n = {
     admin_edit: 'Modifier', admin_delete: 'Supprimer', admin_save: 'Enregistrer', admin_cancel: 'Annuler',
     admin_confirm_delete: 'Voulez-vous vraiment supprimer cette activité ?', admin_no_entries: 'Aucune entrée.',
     admin_search_placeholder: 'Chercher par nom…',
+    admin_tab_activities: 'Activités', admin_tab_initiatives: 'Initiatives',
+    admin_ini_add: 'Nouvelle initiative', admin_ini_edit: 'Modifier l\'initiative',
+    admin_ini_col_title: 'Titre', admin_ini_col_status: 'Statut', admin_ini_col_period: 'Période',
+    admin_ini_col_types: 'Types d\'activité', admin_ini_col_tags: 'Tags',
+    admin_ini_short_desc: 'Description courte', admin_ini_long_desc: 'Description',
+    admin_ini_date_start: 'Début', admin_ini_date_end: 'Fin',
+    admin_ini_confirm_delete: 'Voulez-vous vraiment supprimer cette initiative ? Les activités associées seront conservées.',
   },
   it: {
     nav_initiatives: 'Iniziative', nav_log: 'Registra attività', nav_mylogs: 'I miei log', nav_about: 'Chi siamo',
@@ -1364,6 +1504,13 @@ const i18n = {
     admin_edit: 'Modifica', admin_delete: 'Elimina', admin_save: 'Salva', admin_cancel: 'Annulla',
     admin_confirm_delete: 'Vuoi davvero eliminare questa attività?', admin_no_entries: 'Nessuna voce.',
     admin_search_placeholder: 'Cerca per nome…',
+    admin_tab_activities: 'Attività', admin_tab_initiatives: 'Iniziative',
+    admin_ini_add: 'Nuova iniziativa', admin_ini_edit: 'Modifica iniziativa',
+    admin_ini_col_title: 'Titolo', admin_ini_col_status: 'Stato', admin_ini_col_period: 'Periodo',
+    admin_ini_col_types: 'Tipi di attività', admin_ini_col_tags: 'Tag',
+    admin_ini_short_desc: 'Descrizione breve', admin_ini_long_desc: 'Descrizione',
+    admin_ini_date_start: 'Inizio', admin_ini_date_end: 'Fine',
+    admin_ini_confirm_delete: 'Vuoi davvero eliminare questa iniziativa? Le attività associate rimarranno.',
   },
   en: {
     nav_initiatives: 'Initiatives', nav_log: 'Log Activity', nav_mylogs: 'My Logs', nav_about: 'About',
@@ -1410,6 +1557,13 @@ const i18n = {
     admin_edit: 'Edit', admin_delete: 'Delete', admin_save: 'Save', admin_cancel: 'Cancel',
     admin_confirm_delete: 'Really delete this activity?', admin_no_entries: 'No entries.',
     admin_search_placeholder: 'Search by name…',
+    admin_tab_activities: 'Activities', admin_tab_initiatives: 'Initiatives',
+    admin_ini_add: 'New Initiative', admin_ini_edit: 'Edit Initiative',
+    admin_ini_col_title: 'Title', admin_ini_col_status: 'Status', admin_ini_col_period: 'Period',
+    admin_ini_col_types: 'Activity Types', admin_ini_col_tags: 'Tags',
+    admin_ini_short_desc: 'Short Description', admin_ini_long_desc: 'Description',
+    admin_ini_date_start: 'Start', admin_ini_date_end: 'End',
+    admin_ini_confirm_delete: 'Really delete this initiative? Associated activities will be kept.',
   }
 };
 
@@ -2209,6 +2363,138 @@ async function adminDelete(id) {
   if (error) { alert(error.message); return; }
 
   renderAdminTable();
+}
+
+// ─── ADMIN TABS ───
+function switchAdminTab(tab) {
+  document.getElementById('adminActivitiesTab').style.display = tab === 'activities' ? '' : 'none';
+  document.getElementById('adminInitiativesTab').style.display = tab === 'initiatives' ? '' : 'none';
+  document.getElementById('adminTabActivities').classList.toggle('active', tab === 'activities');
+  document.getElementById('adminTabInitiatives').classList.toggle('active', tab === 'initiatives');
+  if (tab === 'initiatives') renderAdminInitiatives();
+}
+
+// ─── ADMIN INITIATIVES ───
+async function renderAdminInitiatives() {
+  if (!sb || !isAdminLoggedIn) return;
+
+  const { data, error } = await sb.from('initiatives')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('adminIniTableBody');
+  const emptyEl = document.getElementById('adminIniEmpty');
+
+  if (error || !data || data.length === 0) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = '';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  const statusLabels = { active: 'status_active', upcoming: 'status_upcoming', ended: 'status_ended' };
+  const typeLabels = { walk: 'type_walk', run: 'type_run', bike: 'type_bike', swim: 'type_swim', wheelchair: 'type_wheelchair', other: 'type_other' };
+
+  tbody.innerHTML = data.map(ini => {
+    const statusPill = `<span class="status-pill ${ini.status}">${t(statusLabels[ini.status] || ini.status)}</span>`;
+    const period = [ini.date_start, ini.date_end].filter(Boolean).join(' – ') || '—';
+    const types = (ini.allowed_activity_types || []).map(ty => t(typeLabels[ty] || ty)).join(', ') || '—';
+    const tags = (ini.tags || []).join(', ') || '—';
+    return `<tr>
+      <td><strong>${ini.title}</strong><br><small style="color:var(--lci-gray);">${ini.short_description || ''}</small></td>
+      <td>${statusPill}</td>
+      <td style="white-space:nowrap;">${period}</td>
+      <td>${types}</td>
+      <td>${tags}</td>
+      <td class="admin-actions">
+        <button class="admin-btn edit" onclick="openInitiativeEdit('${ini.id}')">${t('admin_edit')}</button>
+        <button class="admin-btn delete" onclick="adminDeleteInitiative('${ini.id}')">${t('admin_delete')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openInitiativeEdit(id) {
+  const modal = document.getElementById('adminIniEditModal');
+  const titleEl = document.getElementById('adminIniEditTitle');
+
+  if (id) {
+    // Edit existing
+    const ini = initiatives.find(i => i.id === id);
+    if (!ini) return;
+    titleEl.textContent = t('admin_ini_edit');
+    document.getElementById('iniEditId').value = ini.id;
+    document.getElementById('iniEditTitle').value = ini.title || '';
+    document.getElementById('iniEditShortDesc').value = ini.short_description || '';
+    document.getElementById('iniEditLongDesc').value = ini.long_description || '';
+    document.getElementById('iniEditStatus').value = ini.status || 'active';
+    document.getElementById('iniEditDateStart').value = ini.date_start || '';
+    document.getElementById('iniEditDateEnd').value = ini.date_end || '';
+    document.getElementById('iniEditTags').value = (ini.tags || []).join(', ');
+    // Set checkboxes
+    document.querySelectorAll('#iniEditTypes input[type="checkbox"]').forEach(cb => {
+      cb.checked = (ini.allowed_activity_types || []).includes(cb.value);
+    });
+  } else {
+    // New
+    titleEl.textContent = t('admin_ini_add');
+    document.getElementById('iniEditId').value = '';
+    document.getElementById('adminIniEditForm').reset();
+    document.querySelectorAll('#iniEditTypes input[type="checkbox"]').forEach(cb => cb.checked = false);
+  }
+  modal.classList.add('open');
+}
+
+function closeInitiativeEdit() {
+  document.getElementById('adminIniEditModal').classList.remove('open');
+}
+
+async function saveInitiativeEdit(e) {
+  e.preventDefault();
+  const id = document.getElementById('iniEditId').value;
+  const types = [];
+  document.querySelectorAll('#iniEditTypes input[type="checkbox"]:checked').forEach(cb => types.push(cb.value));
+  const tagsRaw = document.getElementById('iniEditTags').value;
+  const tags = tagsRaw ? tagsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const record = {
+    title: document.getElementById('iniEditTitle').value.trim(),
+    short_description: document.getElementById('iniEditShortDesc').value.trim() || null,
+    long_description: document.getElementById('iniEditLongDesc').value.trim() || null,
+    status: document.getElementById('iniEditStatus').value,
+    date_start: document.getElementById('iniEditDateStart').value || null,
+    date_end: document.getElementById('iniEditDateEnd').value || null,
+    allowed_activity_types: types,
+    tags: tags,
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await sb.from('initiatives').update(record).eq('id', id));
+  } else {
+    if (currentUser) record.created_by = currentUser.id;
+    ({ error } = await sb.from('initiatives').insert(record));
+  }
+
+  if (error) { alert(error.message); return; }
+
+  closeInitiativeEdit();
+  // Reload initiatives globally
+  const { data: iniData } = await sb.from('initiatives').select('*').order('date_start', { ascending: false });
+  if (iniData) initiatives.length = 0, initiatives.push(...iniData);
+  renderAdminInitiatives();
+}
+
+async function adminDeleteInitiative(id) {
+  if (!confirm(t('admin_ini_confirm_delete'))) return;
+
+  const { error } = await sb.from('initiatives').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+
+  // Reload initiatives globally
+  const { data: iniData } = await sb.from('initiatives').select('*').order('date_start', { ascending: false });
+  if (iniData) initiatives.length = 0, initiatives.push(...iniData);
+  renderAdminInitiatives();
 }
 
 // ═══════════════════════════════════════
