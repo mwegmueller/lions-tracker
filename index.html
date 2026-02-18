@@ -37,6 +37,8 @@ CREATE TABLE activity_logs (
   logged_at timestamptz DEFAULT now(),
   notes text,
   photo_url text,
+  user_email text,
+  user_name text,
   created_at timestamptz DEFAULT now()
 );
 
@@ -57,13 +59,13 @@ CREATE POLICY "Users can insert their own logs"
   ON activity_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own logs"
+CREATE POLICY "Authenticated users can update logs"
   ON activity_logs FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Users can delete their own logs"
+CREATE POLICY "Authenticated users can delete logs"
   ON activity_logs FOR DELETE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() IS NOT NULL);
 
 -- 3. Seed example initiatives
 
@@ -627,6 +629,59 @@ body {
   .page-header .container { flex-direction: column; align-items: flex-start; }
 }
 
+/* ─── ADMIN ─── */
+.admin-login-card {
+  max-width: 400px; margin: 40px auto; background: #fff;
+  border-radius: 12px; padding: 36px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border: 1px solid var(--lci-border);
+}
+.admin-login-card h3 { color: var(--lci-blue); margin-bottom: 20px; text-align: center; }
+.admin-error {
+  background: #f8d7da; color: #721c24; border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 16px; font-size: 0.9rem; display: none;
+}
+.admin-error.visible { display: block; }
+.admin-toolbar {
+  margin-bottom: 16px; display: flex; gap: 12px; align-items: center;
+}
+.admin-toolbar input {
+  flex: 1; padding: 10px 14px; border: 1px solid var(--lci-border);
+  border-radius: 8px; font-size: 0.9rem;
+}
+.admin-table-wrap { overflow-x: auto; }
+.admin-table {
+  width: 100%; border-collapse: collapse; font-size: 0.9rem;
+  background: #fff; border-radius: 8px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.admin-table th {
+  background: var(--lci-blue); color: #fff; padding: 10px 12px;
+  text-align: left; font-weight: 600; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+}
+.admin-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--lci-border);
+  vertical-align: middle;
+}
+.admin-table tr:hover { background: var(--lci-bg-alt); }
+.admin-table .admin-actions { white-space: nowrap; display: flex; gap: 6px; }
+.admin-btn {
+  padding: 5px 10px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: 0.8rem; font-weight: 600; transition: background 0.2s;
+}
+.admin-btn.edit {
+  background: var(--lci-gold); color: var(--lci-blue);
+}
+.admin-btn.edit:hover { background: #d4a400; }
+.admin-btn.delete {
+  background: #f8d7da; color: #dc3545;
+}
+.admin-btn.delete:hover { background: #f1b0b7; }
+@media (max-width: 768px) {
+  .admin-table { font-size: 0.8rem; }
+  .admin-table th, .admin-table td { padding: 8px 8px; }
+}
+
 /* ─── AUTH MODAL ─── */
 .auth-modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -745,6 +800,7 @@ body {
       <a onclick="navigate('mylogs')" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
       <a onclick="navigate('highscore')" data-page="highscore" data-i18n="nav_highscore">Highscore</a>
       <a onclick="navigate('about')" data-page="about" data-i18n="nav_about">Über uns</a>
+      <a onclick="navigate('admin')" data-page="admin" data-i18n="nav_admin" style="opacity:0.6; font-size:0.85em;">Admin</a>
     </div>
     <div class="nav-right">
       <div class="lang-switch" id="langSwitch">
@@ -770,6 +826,7 @@ body {
   <a onclick="navigate('mylogs');closeMobileMenu()" data-page="mylogs" data-i18n="nav_mylogs">Meine Logs</a>
   <a onclick="navigate('highscore');closeMobileMenu()" data-page="highscore" data-i18n="nav_highscore">Highscore</a>
   <a onclick="navigate('about');closeMobileMenu()" data-page="about" data-i18n="nav_about">Über uns</a>
+  <a onclick="navigate('admin');closeMobileMenu()" data-page="admin" data-i18n="nav_admin" style="opacity:0.6; font-size:0.85em;">Admin</a>
 </div>
 
 <!-- ═══ PAGE: INITIATIVES ═══ -->
@@ -830,6 +887,10 @@ body {
   <div class="container">
     <div class="log-form-wrap" id="logFormWrap">
       <form id="logForm" onsubmit="submitLog(event)">
+        <div class="form-group">
+          <label data-i18n="log_name">Dein Name *</label>
+          <input type="text" id="logName" required placeholder="Vor- und Nachname" data-i18n-placeholder="log_name_placeholder">
+        </div>
         <div class="form-group">
           <label data-i18n="log_initiative">Initiative *</label>
           <select id="logInitiative" required onchange="onInitiativeChange()">
@@ -976,6 +1037,104 @@ body {
   </div>
 </div>
 
+<!-- ═══ PAGE: ADMIN ═══ -->
+<div class="page" id="page-admin">
+  <div class="page-header">
+    <div class="container">
+      <div>
+        <h1 data-i18n="admin_title">Administration</h1>
+        <div class="subtitle" data-i18n="admin_subtitle">Aktivitäten verwalten</div>
+      </div>
+      <button class="btn-secondary" id="adminLogoutBtn" onclick="adminLogout()" style="display:none;" data-i18n="admin_logout">Admin abmelden</button>
+    </div>
+  </div>
+  <div class="container">
+    <!-- Admin Login -->
+    <div id="adminLoginArea" class="admin-login-card">
+      <h3 data-i18n="admin_login_title">Admin-Zugang</h3>
+      <div class="admin-error" id="adminError"></div>
+      <form onsubmit="adminLogin(event)">
+        <div class="form-group">
+          <label data-i18n="admin_password">Passwort</label>
+          <input type="password" id="adminPassword" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">
+          <span data-i18n="admin_login">Anmelden</span>
+        </button>
+      </form>
+    </div>
+    <!-- Admin Content (hidden until login) -->
+    <div id="adminContent" style="display:none;">
+      <div class="admin-toolbar">
+        <input type="text" id="adminSearch" placeholder="Nach Name suchen…" data-i18n-placeholder="admin_search_placeholder" oninput="renderAdminTable()">
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th data-i18n="admin_col_name">Name</th>
+              <th data-i18n="admin_col_initiative">Initiative</th>
+              <th data-i18n="admin_col_type">Typ</th>
+              <th data-i18n="admin_col_duration">Dauer</th>
+              <th data-i18n="admin_col_distance">Distanz</th>
+              <th data-i18n="admin_col_date">Datum</th>
+              <th data-i18n="admin_col_notes">Notizen</th>
+              <th data-i18n="admin_col_actions">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+      <div id="adminEmpty" class="hs-empty" style="display:none;">
+        <h3 data-i18n="admin_no_entries">Keine Einträge vorhanden.</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN EDIT MODAL ═══ -->
+<div class="modal-overlay" id="adminEditModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 data-i18n="admin_edit">Bearbeiten</h2>
+      <button class="modal-close" onclick="closeAdminEdit()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="adminEditForm" onsubmit="saveAdminEdit(event)">
+        <input type="hidden" id="adminEditId">
+        <div class="form-group">
+          <label data-i18n="admin_col_name">Name</label>
+          <input type="text" id="adminEditName">
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_col_type">Typ</label>
+          <select id="adminEditType">
+            <option value="walk">Walk</option><option value="run">Run</option>
+            <option value="bike">Bike</option><option value="swim">Swim</option>
+            <option value="wheelchair">Wheelchair</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_col_duration">Dauer (min)</label>
+          <input type="number" id="adminEditDuration" min="1" required>
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_col_distance">Distanz (km)</label>
+          <input type="number" id="adminEditDistance" min="0" step="0.1">
+        </div>
+        <div class="form-group">
+          <label data-i18n="admin_col_notes">Notizen</label>
+          <textarea id="adminEditNotes"></textarea>
+        </div>
+        <div style="display:flex; gap:12px; margin-top:16px;">
+          <button type="submit" class="btn-primary" style="flex:1; justify-content:center;" data-i18n="admin_save">Speichern</button>
+          <button type="button" class="btn-secondary" style="flex:1; justify-content:center;" onclick="closeAdminEdit()" data-i18n="admin_cancel">Abbrechen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ INITIATIVE DETAIL MODAL ═══ -->
 <div class="modal-overlay" id="detailModal">
   <div class="modal">
@@ -1072,6 +1231,7 @@ const i18n = {
     card_minutes: 'Min.', card_km: 'km', card_participants: 'Teilnehmer',
     card_log_btn: 'Loggen',
     log_title: 'Aktivität erfassen', log_subtitle: 'Schnell und einfach — in unter 30 Sekunden',
+    log_name: 'Dein Name *', log_name_placeholder: 'Vor- und Nachname',
     log_initiative: 'Initiative *', log_select_initiative: 'Initiative wählen…',
     log_activity_type: 'Aktivitätstyp *', log_duration: 'Dauer (Minuten) *', log_distance: 'Distanz (km)',
     log_distance_hint: 'Optional — nicht alle Aktivitäten tracken Distanz',
@@ -1096,6 +1256,15 @@ const i18n = {
     confirm_delete: 'Diese Aktivität wirklich löschen?',
     nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Rangliste aller Teilnehmer',
     hs_activities: 'Aktivitäten', hs_no_data: 'Noch keine Aktivitäten erfasst.',
+    nav_admin: 'Admin', admin_title: 'Administration', admin_subtitle: 'Aktivitäten verwalten',
+    admin_login_title: 'Admin-Zugang', admin_password: 'Passwort', admin_login: 'Anmelden',
+    admin_wrong_pw: 'Falsches Passwort', admin_logout: 'Admin abmelden',
+    admin_col_name: 'Name', admin_col_initiative: 'Initiative', admin_col_type: 'Typ',
+    admin_col_duration: 'Dauer', admin_col_distance: 'Distanz', admin_col_date: 'Datum',
+    admin_col_notes: 'Notizen', admin_col_actions: 'Aktionen',
+    admin_edit: 'Bearbeiten', admin_delete: 'Löschen', admin_save: 'Speichern', admin_cancel: 'Abbrechen',
+    admin_confirm_delete: 'Diese Aktivität wirklich löschen?', admin_no_entries: 'Keine Einträge vorhanden.',
+    admin_search_placeholder: 'Nach Name suchen…',
   },
   fr: {
     nav_initiatives: 'Initiatives', nav_log: 'Saisir activité', nav_mylogs: 'Mes logs', nav_about: 'À propos',
@@ -1108,6 +1277,7 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
     card_log_btn: 'Logger',
     log_title: 'Saisir activité', log_subtitle: 'Rapide et simple — en moins de 30 secondes',
+    log_name: 'Votre nom *', log_name_placeholder: 'Prénom et nom',
     log_initiative: 'Initiative *', log_select_initiative: 'Choisir une initiative…',
     log_activity_type: 'Type d\'activité *', log_duration: 'Durée (minutes) *', log_distance: 'Distance (km)',
     log_distance_hint: 'Optionnel — pas toutes les activités mesurent la distance',
@@ -1132,6 +1302,15 @@ const i18n = {
     confirm_delete: 'Voulez-vous vraiment supprimer cette activité ?',
     nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Classement de tous les participants',
     hs_activities: 'activités', hs_no_data: 'Aucune activité enregistrée.',
+    nav_admin: 'Admin', admin_title: 'Administration', admin_subtitle: 'Gérer les activités',
+    admin_login_title: 'Accès administrateur', admin_password: 'Mot de passe', admin_login: 'Connexion',
+    admin_wrong_pw: 'Mot de passe incorrect', admin_logout: 'Déconnexion admin',
+    admin_col_name: 'Nom', admin_col_initiative: 'Initiative', admin_col_type: 'Type',
+    admin_col_duration: 'Durée', admin_col_distance: 'Distance', admin_col_date: 'Date',
+    admin_col_notes: 'Notes', admin_col_actions: 'Actions',
+    admin_edit: 'Modifier', admin_delete: 'Supprimer', admin_save: 'Enregistrer', admin_cancel: 'Annuler',
+    admin_confirm_delete: 'Voulez-vous vraiment supprimer cette activité ?', admin_no_entries: 'Aucune entrée.',
+    admin_search_placeholder: 'Chercher par nom…',
   },
   it: {
     nav_initiatives: 'Iniziative', nav_log: 'Registra attività', nav_mylogs: 'I miei log', nav_about: 'Chi siamo',
@@ -1144,6 +1323,7 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'partecipanti',
     card_log_btn: 'Registra',
     log_title: 'Registra attività', log_subtitle: 'Veloce e semplice — in meno di 30 secondi',
+    log_name: 'Il tuo nome *', log_name_placeholder: 'Nome e cognome',
     log_initiative: 'Iniziativa *', log_select_initiative: 'Scegli un\'iniziativa…',
     log_activity_type: 'Tipo di attività *', log_duration: 'Durata (minuti) *', log_distance: 'Distanza (km)',
     log_distance_hint: 'Opzionale — non tutte le attività misurano la distanza',
@@ -1168,6 +1348,15 @@ const i18n = {
     confirm_delete: 'Vuoi davvero eliminare questa attività?',
     nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Classifica di tutti i partecipanti',
     hs_activities: 'attività', hs_no_data: 'Nessuna attività registrata.',
+    nav_admin: 'Admin', admin_title: 'Amministrazione', admin_subtitle: 'Gestisci le attività',
+    admin_login_title: 'Accesso amministratore', admin_password: 'Password', admin_login: 'Accedi',
+    admin_wrong_pw: 'Password errata', admin_logout: 'Disconnetti admin',
+    admin_col_name: 'Nome', admin_col_initiative: 'Iniziativa', admin_col_type: 'Tipo',
+    admin_col_duration: 'Durata', admin_col_distance: 'Distanza', admin_col_date: 'Data',
+    admin_col_notes: 'Note', admin_col_actions: 'Azioni',
+    admin_edit: 'Modifica', admin_delete: 'Elimina', admin_save: 'Salva', admin_cancel: 'Annulla',
+    admin_confirm_delete: 'Vuoi davvero eliminare questa attività?', admin_no_entries: 'Nessuna voce.',
+    admin_search_placeholder: 'Cerca per nome…',
   },
   en: {
     nav_initiatives: 'Initiatives', nav_log: 'Log Activity', nav_mylogs: 'My Logs', nav_about: 'About',
@@ -1180,6 +1369,7 @@ const i18n = {
     card_minutes: 'min.', card_km: 'km', card_participants: 'participants',
     card_log_btn: 'Log',
     log_title: 'Log Activity', log_subtitle: 'Quick and simple — under 30 seconds',
+    log_name: 'Your Name *', log_name_placeholder: 'First and last name',
     log_initiative: 'Initiative *', log_select_initiative: 'Select initiative…',
     log_activity_type: 'Activity Type *', log_duration: 'Duration (minutes) *', log_distance: 'Distance (km)',
     log_distance_hint: 'Optional — not all activities track distance',
@@ -1204,6 +1394,15 @@ const i18n = {
     confirm_delete: 'Really delete this activity?',
     nav_highscore: 'Highscore', highscore_title: 'Highscore', highscore_subtitle: 'Leaderboard of all participants',
     hs_activities: 'activities', hs_no_data: 'No activities logged yet.',
+    nav_admin: 'Admin', admin_title: 'Administration', admin_subtitle: 'Manage activities',
+    admin_login_title: 'Admin Access', admin_password: 'Password', admin_login: 'Log In',
+    admin_wrong_pw: 'Wrong password', admin_logout: 'Log out admin',
+    admin_col_name: 'Name', admin_col_initiative: 'Initiative', admin_col_type: 'Type',
+    admin_col_duration: 'Duration', admin_col_distance: 'Distance', admin_col_date: 'Date',
+    admin_col_notes: 'Notes', admin_col_actions: 'Actions',
+    admin_edit: 'Edit', admin_delete: 'Delete', admin_save: 'Save', admin_cancel: 'Cancel',
+    admin_confirm_delete: 'Really delete this activity?', admin_no_entries: 'No entries.',
+    admin_search_placeholder: 'Search by name…',
   }
 };
 
@@ -1599,6 +1798,7 @@ async function submitLog(e) {
     return;
   }
 
+  const userName = document.getElementById('logName').value.trim();
   const initiativeId = document.getElementById('logInitiative').value;
   const duration = parseInt(document.getElementById('logDuration').value);
   const distance = document.getElementById('logDistance').value ? parseFloat(document.getElementById('logDistance').value) : null;
@@ -1606,9 +1806,13 @@ async function submitLog(e) {
   const loggedAt = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
   const notes = document.getElementById('logNotes').value.trim() || null;
 
+  // Remember name for next time
+  localStorage.setItem('lions_user_name', userName);
+
   const { error } = await sb.from('activity_logs').insert({
     user_id: currentUser.id,
     user_email: currentUser.email || currentUser.user_metadata?.email || null,
+    user_name: userName,
     initiative_id: initiativeId,
     activity_type: selectedActivityType,
     duration_minutes: duration,
@@ -1737,7 +1941,7 @@ async function renderHighscore() {
   const iniFilter = document.getElementById('hsFilterInitiative').value;
   const typeFilter = document.getElementById('hsFilterType').value;
 
-  let query = sb.from('activity_logs').select('user_id, user_email, duration_minutes, distance_km, activity_type, initiative_id');
+  let query = sb.from('activity_logs').select('user_id, user_email, user_name, duration_minutes, distance_km, activity_type, initiative_id');
   if (iniFilter !== 'all') query = query.eq('initiative_id', iniFilter);
   if (typeFilter !== 'all') query = query.eq('activity_type', typeFilter);
 
@@ -1747,11 +1951,11 @@ async function renderHighscore() {
     return;
   }
 
-  // Group by user_email (fall back to user_id if no email)
+  // Group by user_name (fall back to email or user_id)
   const grouped = {};
   data.forEach(row => {
-    const key = row.user_email || row.user_id;
-    if (!grouped[key]) grouped[key] = { minutes: 0, km: 0, count: 0, email: row.user_email, user_id: row.user_id };
+    const key = row.user_name || row.user_email || row.user_id;
+    if (!grouped[key]) grouped[key] = { minutes: 0, km: 0, count: 0, name: row.user_name, email: row.user_email };
     grouped[key].minutes += row.duration_minutes || 0;
     grouped[key].km += parseFloat(row.distance_km) || 0;
     grouped[key].count += 1;
@@ -1760,26 +1964,18 @@ async function renderHighscore() {
   // Sort by current mode
   const sorted = Object.entries(grouped).sort((a, b) => b[1][hsMode] - a[1][hsMode]);
 
-  // Build display names from email
+  // Build display names
   const userNames = {};
   sorted.forEach(([key, stats], i) => {
-    if (stats.email) {
-      // Show part before @ as display name
+    if (stats.name) {
+      userNames[key] = stats.name;
+    } else if (stats.email) {
       const name = stats.email.split('@')[0];
-      // Capitalize first letter
       userNames[key] = name.charAt(0).toUpperCase() + name.slice(1);
     } else {
       userNames[key] = `${t('card_participants')} ${i + 1}`;
     }
   });
-  // Mark the current user with a star
-  if (currentUser) {
-    const meKey = currentUser.email || currentUser.id;
-    const meLabels = { de: ' (Du)', fr: ' (Toi)', it: ' (Tu)', en: ' (You)' };
-    if (grouped[meKey]) {
-      userNames[meKey] = userNames[meKey] + (meLabels[currentLang] || ' (You)');
-    }
-  }
 
   const unitLabels = { minutes: 'min', km: 'km', count: '' };
   const unit = unitLabels[hsMode];
@@ -1824,6 +2020,161 @@ async function renderHighscore() {
 }
 
 // ═══════════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════════
+let isAdminLoggedIn = false;
+let adminData = [];
+
+// Admin password = Supabase project password (stored as SHA-256 hash)
+// To set the admin password, run in browser console: setAdminPassword('yourpassword')
+const ADMIN_PW_HASH_KEY = 'lions_admin_pw_hash';
+
+async function hashPassword(pw) {
+  const enc = new TextEncoder().encode(pw);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Set admin password (run once from console or first login sets it)
+window.setAdminPassword = async function(pw) {
+  const hash = await hashPassword(pw);
+  localStorage.setItem(ADMIN_PW_HASH_KEY, hash);
+  console.log('Admin password set.');
+};
+
+async function adminLogin(e) {
+  e.preventDefault();
+  const pw = document.getElementById('adminPassword').value;
+  const hash = await hashPassword(pw);
+  const storedHash = localStorage.getItem(ADMIN_PW_HASH_KEY);
+
+  // If no password set yet, first login sets it
+  if (!storedHash) {
+    localStorage.setItem(ADMIN_PW_HASH_KEY, hash);
+  } else if (hash !== storedHash) {
+    const errEl = document.getElementById('adminError');
+    errEl.textContent = t('admin_wrong_pw');
+    errEl.classList.add('visible');
+    return;
+  }
+
+  isAdminLoggedIn = true;
+  sessionStorage.setItem('lions_admin', '1');
+  document.getElementById('adminLoginArea').style.display = 'none';
+  document.getElementById('adminContent').style.display = '';
+  document.getElementById('adminLogoutBtn').style.display = '';
+  document.getElementById('adminError').classList.remove('visible');
+  renderAdminTable();
+}
+
+function adminLogout() {
+  isAdminLoggedIn = false;
+  sessionStorage.removeItem('lions_admin');
+  document.getElementById('adminLoginArea').style.display = '';
+  document.getElementById('adminContent').style.display = 'none';
+  document.getElementById('adminLogoutBtn').style.display = 'none';
+  document.getElementById('adminPassword').value = '';
+}
+
+async function renderAdminTable() {
+  if (!sb || !isAdminLoggedIn) return;
+
+  const searchVal = (document.getElementById('adminSearch')?.value || '').toLowerCase();
+
+  const { data, error } = await sb.from('activity_logs')
+    .select('*')
+    .order('logged_at', { ascending: false });
+
+  if (error || !data) {
+    document.getElementById('adminEmpty').style.display = '';
+    return;
+  }
+
+  adminData = data;
+
+  let filtered = data;
+  if (searchVal) {
+    filtered = data.filter(row =>
+      (row.user_name || row.user_email || '').toLowerCase().includes(searchVal)
+    );
+  }
+
+  const tbody = document.getElementById('adminTableBody');
+  const emptyEl = document.getElementById('adminEmpty');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = '';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  const typeLabels = { walk: 'type_walk', run: 'type_run', bike: 'type_bike', swim: 'type_swim', wheelchair: 'type_wheelchair', other: 'type_other' };
+
+  tbody.innerHTML = filtered.map(row => {
+    const ini = initiatives.find(i => i.id === row.initiative_id);
+    const displayName = row.user_name || row.user_email || '—';
+    const typeLabel = t(typeLabels[row.activity_type] || 'type_other');
+    return `<tr>
+      <td><strong>${displayName}</strong></td>
+      <td>${ini ? ini.title : '—'}</td>
+      <td>${typeLabel}</td>
+      <td>${row.duration_minutes} min</td>
+      <td>${row.distance_km ? parseFloat(row.distance_km).toFixed(1) + ' km' : '—'}</td>
+      <td>${formatDateTime(row.logged_at)}</td>
+      <td>${row.notes || '—'}</td>
+      <td class="admin-actions">
+        <button class="admin-btn edit" onclick="openAdminEdit('${row.id}')">${t('admin_edit')}</button>
+        <button class="admin-btn delete" onclick="adminDelete('${row.id}')">${t('admin_delete')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openAdminEdit(id) {
+  const row = adminData.find(r => r.id === id);
+  if (!row) return;
+  document.getElementById('adminEditId').value = row.id;
+  document.getElementById('adminEditName').value = row.user_name || '';
+  document.getElementById('adminEditType').value = row.activity_type || 'walk';
+  document.getElementById('adminEditDuration').value = row.duration_minutes;
+  document.getElementById('adminEditDistance').value = row.distance_km || '';
+  document.getElementById('adminEditNotes').value = row.notes || '';
+  document.getElementById('adminEditModal').classList.add('open');
+}
+
+function closeAdminEdit() {
+  document.getElementById('adminEditModal').classList.remove('open');
+}
+
+async function saveAdminEdit(e) {
+  e.preventDefault();
+  const id = document.getElementById('adminEditId').value;
+  const updates = {
+    user_name: document.getElementById('adminEditName').value.trim() || null,
+    activity_type: document.getElementById('adminEditType').value,
+    duration_minutes: parseInt(document.getElementById('adminEditDuration').value),
+    distance_km: document.getElementById('adminEditDistance').value ? parseFloat(document.getElementById('adminEditDistance').value) : null,
+    notes: document.getElementById('adminEditNotes').value.trim() || null
+  };
+
+  const { error } = await sb.from('activity_logs').update(updates).eq('id', id);
+  if (error) { alert(error.message); return; }
+
+  closeAdminEdit();
+  renderAdminTable();
+}
+
+async function adminDelete(id) {
+  if (!confirm(t('admin_confirm_delete'))) return;
+
+  const { error } = await sb.from('activity_logs').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+
+  renderAdminTable();
+}
+
+// ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
 function navigate(page) {
@@ -1838,6 +2189,9 @@ function navigate(page) {
   if (page === 'log') {
     document.getElementById('logFormWrap').style.display = '';
     document.getElementById('successScreen').style.display = 'none';
+    // Pre-fill name from localStorage
+    const savedName = localStorage.getItem('lions_user_name');
+    if (savedName) document.getElementById('logName').value = savedName;
     if (!currentUser && sb) {
       // Prompt sign-in for logging
     }
@@ -1845,6 +2199,16 @@ function navigate(page) {
   if (page === 'mylogs') renderMyLogs();
   if (page === 'highscore') renderHighscore();
   if (page === 'initiatives') { loadKPIs(); renderInitiatives(); }
+  if (page === 'admin') {
+    // Restore session if was previously logged in
+    if (sessionStorage.getItem('lions_admin') === '1') {
+      isAdminLoggedIn = true;
+      document.getElementById('adminLoginArea').style.display = 'none';
+      document.getElementById('adminContent').style.display = '';
+      document.getElementById('adminLogoutBtn').style.display = '';
+      renderAdminTable();
+    }
+  }
 }
 
 function toggleMobileMenu() {
